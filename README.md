@@ -2,7 +2,12 @@
 
 Yao.jl with CUDA native!
 
-Under progress!
+Under progress! To start
+```
+add Yao#Design4GPU
+julia test/gpuapplys.jl
+julia test/GPUReg.jl
+```
 
 Supported Gate List
 - [x] general U(N) gate
@@ -12,6 +17,7 @@ Supported Gate List
 - [x] better control gates
 
 Supported Operations
-- [ ] measure!, measure_reset!, measure_remove!
-- [ ] addbit!
+- [x] measure!, measure_reset!, measure_remove!, select
+- [x] addbit!
 - [ ] expect
+- [ ] focus!, relax!

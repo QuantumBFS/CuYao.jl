@@ -1,12 +1,12 @@
+#=
 using Test
 using Yao, Yao.Blocks, Yao.Intrinsics, Yao.Boost
 
-using GPUArrays
-using CuArrays
-using CUDAnative
+using GPUArrays, CuArrays, CUDAnative
 CuArrays.allowscalar(false)
 
 using LuxurySparse, StaticArrays, LinearAlgebra
+=#
 
 import Yao.Intrinsics: unrows!, u1apply!, _unapply!, swaprows!
 import Yao.Boost: zapply!, xapply!, yapply!, cxapply!, cyapply!, czapply!, sapply!, sdagapply!, tapply!, tdagapply!
