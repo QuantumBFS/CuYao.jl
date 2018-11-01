@@ -1,4 +1,7 @@
-using CuYao, Test
+using Yao, Yao.Boost, Yao.Intrinsics
+using Test
+# using CuYao
+include("../src/gpuapplys.jl")
 
 @testset "gpu unapply!" begin
     nbit = 6
@@ -28,4 +31,32 @@ end
     # sparse matrix like P0, P1 et. al. are not implemented.
 end
 
+@testset "gpu xyz-apply!" begin
+    nbit = 6
+    N = 1<<nbit
+    LOC1 = SVector{2}([0, 1])
+    v1 = randn(ComplexF32, N)
+    vn = randn(ComplexF32, N, 3)
 
+    for func in [xapply!, yapply!, zapply!, tapply!, tdagapply!, sapply!, sdagapply!][1:3]
+        @test func(v1 |> cu, 3) |> Vector ≈ func(v1 |> copy, 3)
+        @test func(vn |> cu, 3) |> Matrix ≈ func(vn |> copy, 3)
+        @test func(v1 |> cu, [1,3,4]) |> Vector ≈ func(v1 |> copy, [1,3,4])
+        @test func(vn |> cu, [1,3,4]) |> Matrix ≈ func(vn |> copy, [1,3,4])
+    end
+end
+
+@testset "gpu cn-xyz-apply!" begin
+    nbit = 6
+    N = 1<<nbit
+    LOC1 = SVector{2}([0, 1])
+    v1 = randn(ComplexF32, N)
+    vn = randn(ComplexF32, N, 3)
+
+    for func in [cxapply!, cyapply!, czapply!, ctapply!, ctdagapply!, csapply!, csdagapply!][1:3]
+        @test func(v1 |> cu, (4,5), (0, 1), 3) |> Vector ≈ func(v1 |> copy, (4,5), (0, 1), 3)
+        @test func(vn |> cu, (4,5), (0, 1), 3) |> Matrix ≈ func(vn |> copy, (4,5), (0, 1), 3)
+        @test func(v1 |> cu, 1, 1, 3) |> Vector ≈ func(v1 |> copy, 1, 1,3)
+        @test func(vn |> cu, 1, 1, 3) |> Matrix ≈ func(vn |> copy, 1, 1,3)
+    end
+end
