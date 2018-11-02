@@ -1,8 +1,8 @@
 using Yao, Yao.Boost, Yao.Intrinsics, StaticArrays, Yao.Blocks
 using Test
-# using CuYao
-include("../src/CuYao.jl")
-using .CuYao
+using CuYao
+#include("../src/CuYao.jl")
+#using .CuYao
 
 @testset "gpu unapply!" begin
     nbit = 6

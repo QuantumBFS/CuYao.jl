@@ -7,7 +7,7 @@ using Yao, Yao.Blocks, Yao.Intrinsics, Yao.Boost
 using GPUArrays, CuArrays, CUDAnative
 CuArrays.allowscalar(false)
 
-include("CUDApack.jl")
+include("CUDApatch.jl")
 include("GPUReg.jl")
 include("gpuapplys.jl")
 end

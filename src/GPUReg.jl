@@ -10,12 +10,11 @@ using GPUArrays
 using CuArrays
 using CUDAnative
 CuArrays.allowscalar(false)
+include("CUDApatch.jl")
 # =#
 
 import CuArrays: cu
 import Yao.Registers: _measure, measure, measure!, measure_reset!, measure_remove!
-
-include("CUDApack.jl")
 
 export cpu, cu, GPUReg
 

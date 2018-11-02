@@ -1,4 +1,5 @@
-include("../src/CuYao.jl")
+#include("../src/CuYao.jl")
+using CuYao
 using CuArrays, GPUArrays
 using Test
 

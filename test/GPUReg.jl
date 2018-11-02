@@ -1,5 +1,6 @@
-include("../src/CuYao.jl")
-using .CuYao
+#include("../src/CuYao.jl")
+#using .CuYao
+using CuYao
 using Yao, Test
 
 @testset "constructor an measure" begin

@@ -3,8 +3,16 @@
 Yao.jl with CUDA native!
 
 Under progress! To start
+```julia console
+]add Yao#Design4GPU
+
+using Yao, CuYao
+cureg = rand_state(16) |> cu
+cureg |> put(16, 2=>Z)
+measure!(cureg |> addbit(1) |> focus!(4,1,3)) |> relax!
 ```
-add Yao#Design4GPU
+to run tests
+```bash
 julia test/gpuapplys.jl
 julia test/GPUReg.jl
 ```
