@@ -13,11 +13,11 @@ Supported Gate List
 - [x] general U(N) gate
 - [x] general U(1) gate
 - [x] better X, Y, Z gate
-- [ ] better T, S gate
+- [ ] better T, S gate # replys on merge of Boosted T, S gates.
 - [x] better control gates
 
 Supported Operations
 - [x] measure!, measure_reset!, measure_remove!, select
 - [x] addbit!
-- [ ] expect
-- [ ] focus!, relax!
+- [x] expect
+- [x] focus!, relax!

@@ -15,3 +15,8 @@ end
     a = randn(5,6,8) |> CuArray
     @test view(a, 2:4, 4, [1,4,3]) |> size == (3, 3)
 end
+
+@testset "permutedims vector" begin
+    ca = randn(ComplexF64,3,4,5,1)
+    @test permutedims(CuArray(ca), [2,1,4,3]) ≈ permutedims(ca, [2,1,4,3])
+end
