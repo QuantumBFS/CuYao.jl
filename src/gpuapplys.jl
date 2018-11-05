@@ -11,6 +11,21 @@ using LuxurySparse, StaticArrays, LinearAlgebra
 import Yao.Intrinsics: unrows!, u1apply!, _unapply!, swaprows!
 import Yao.Boost: zapply!, xapply!, yapply!, cxapply!, cyapply!, czapply!, sapply!, sdagapply!, tapply!, tdagapply!
 
+function cudiv(x)
+    max_threads = 256
+    threads_x = min(max_threads, x)
+    threads_x, ceil(Int, x/threads_x)
+end
+
+function cudiv(x, y)
+    max_threads = 256
+    threads_x = min(max_threads, x)
+    threads_y = min(max_threads ÷ threads_x, y)
+    threads = (threads_x, threads_y)
+    blocks = ceil.(Int, (x, y) ./ threads)
+    threads, blocks
+end
+
 include("GeneralApply.jl")
 
 function _xkernel(state, mask, c)
@@ -39,7 +54,8 @@ function xapply!(state::CuVecOrMat{T}, bits::Ints) where T
     length(bits) == 0 && return state
     mask = bmask(bits...)
     c = controller(bits[1], 0)
-    @cuda blocks=size(state, 1) _xkernel(state, mask, c)
+    X, Y = cudiv(size(state, 1))
+    @cuda threads=X blocks=Y _xkernel(state, mask, c)
     state
 end
 
@@ -49,7 +65,8 @@ function yapply!(state::CuVecOrMat{T}, bits::Ints{Int}) where T
     c = controller(bits[1], 0)
     bit_parity = length(bits)%2 == 0 ? 1 : -1
     factor = T(-im)^length(bits)
-    @cuda blocks=size(state, 1) _ykernel(state, mask, c, factor, bit_parity)
+    X, Y = cudiv(size(state, 1))
+    @cuda threads=X blocks=Y _ykernel(state, mask, c, factor, bit_parity)
     state
 end
 
@@ -89,7 +106,8 @@ function cxapply!(state::CuVecOrMat{T}, cbits, cvals, bits::Ints) where T
     length(bits) == 0 && return state
     c = controller([cbits..., bits[1]], [cvals..., 0])
     mask = bmask(bits...)
-    @cuda blocks=size(state, 1) _xkernel(state, mask, c)
+    X, Y = cudiv(size(state, 1))
+    @cuda threads=X blocks=Y _xkernel(state, mask, c)
     state
 end
 
@@ -105,7 +123,8 @@ function cyapply!(state::CuVecOrMat, cbits, cvals, bit::Int)
         end
         return
     end
-    @cuda blocks=size(state, 1) kernel(state, mask, c)
+    X, Y = cudiv(size(state, 1))
+    @cuda threads=X blocks=Y kernel(state, mask, c)
     state
 end
 

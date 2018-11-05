@@ -29,3 +29,6 @@ Supported Operations
 - [x] addbit!
 - [x] expect
 - [x] focus!, relax!
+
+### TODO
+- [ ] optimize over batch
