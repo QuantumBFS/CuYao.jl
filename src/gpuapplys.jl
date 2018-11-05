@@ -8,56 +8,91 @@ CuArrays.allowscalar(false)
 using LuxurySparse, StaticArrays, LinearAlgebra
 =#
 
-import Yao.Intrinsics: unrows!, u1apply!, _unapply!, swaprows!
+import Yao.Intrinsics: unrows!, u1apply!, _unapply!, swaprows!, cunapply!
 import Yao.Boost: zapply!, xapply!, yapply!, cxapply!, cyapply!, czapply!, sapply!, sdagapply!, tapply!, tdagapply!
 
-function cudiv(x)
-    max_threads = 256
-    threads_x = min(max_threads, x)
-    threads_x, ceil(Int, x/threads_x)
-end
+include("kernels.jl")
 
-function cudiv(x, y)
-    max_threads = 256
-    threads_x = min(max_threads, x)
-    threads_y = min(max_threads ÷ threads_x, y)
-    threads = (threads_x, threads_y)
-    blocks = ceil.(Int, (x, y) ./ threads)
-    threads, blocks
-end
-
-include("GeneralApply.jl")
-
-function _xkernel(state, mask, c)
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-    b = i-1
-    if c(b)
-        i_ = flip(b, mask) + 1
-        swaprows!(state, i, i_)
-    end
-    return
-end
-
-function _ykernel(state, mask, c, factor, bit_parity)
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-    b = i-1
-    if c(b)
-        i_ = flip(b, mask) + 1
-        factor1 = count_ones(b&mask)%2 == 1 ? -factor : factor
-        factor2 = factor1*bit_parity
-        swaprows!(state, i, i_, factor2, factor1)
-    end
-    return
-end
-
-function xapply!(state::CuVecOrMat{T}, bits::Ints) where T
-    length(bits) == 0 && return state
-    mask = bmask(bits...)
-    c = controller(bits[1], 0)
-    X, Y = cudiv(size(state, 1))
-    @cuda threads=X blocks=Y _xkernel(state, mask, c)
+###################### unapply! ############################
+function _unapply!(state::CuVecOrMat, U::AbstractMatrix, locs_raw::SDVector, ctrl)
+    X, Y = cudiv(size(state)...)
+    kf = un_kernel(ctrl, U, locs_raw)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
     state
 end
+@eval function _unapply!(state::CuVecOrMat, U::SDSparseMatrixCSC, locs_raw::SDVector, ctrl)
+    _unapply!(state, SMatrix{size(U, 1), size(U,2)}(U), locs_raw, ctrl)
+end
+
+function cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::AbstractMatrix, locs::NTuple{M, Int}) where {C, M}
+    # reorder a unirary matrix.
+    U = all(diff(locs).>0) ? U0 : reorder(U0, collect(locs)|>sortperm)
+    N, MM = nactive(state), size(U0, 1)
+    locked_bits = [cbits..., locs...]
+    locked_vals = [cvals..., zeros(Int, M)...]
+    locs_raw = [i+1 for i in itercontrol(N, setdiff(1:N, locs), zeros(Int, N-M))]
+    ctrl = controller(locked_bits, locked_vals)
+
+    _unapply!(state, U |> autostatic, locs_raw |> autostatic, ctrl)
+end
+cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::IMatrix, locs::NTuple{M, Int}) where {C, M} = state
+
+################## General U1 apply! ###################
+# diagonal
+function u1apply!(state::CuVecOrMat, U1::SDDiagonal, ibit::Int)
+    mask = bmask(ibit)
+    a, d = U1.diag
+    kf = u1diag_kernel(mask, a, d)
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
+end
+
+# sparse
+u1apply!(state::CuVecOrMat, U1::SDSparseMatrixCSC, ibit::Int) = u1apply!(state, U1|>Matrix, ibit)
+
+# dense
+function u1apply!(state::CuVecOrMat, U1::SDMatrix, ibit::Int)
+    # reorder a unirary matrix.
+    a, c, b, d = U1
+    step = 1<<(ibit-1)
+    ctrl = controller([ibit], [0])
+    kf = u1_kernel(ctrl, step, a, b, c, d)
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
+end
+
+# perm
+function u1apply!(state::CuVecOrMat{T}, U1::SDPermMatrix, ibit::Int) where T
+    U1.perm[1] == 1 && return u1apply!(state, Diagonal(U1), ibit)
+
+    mask = bmask(ibit)
+    b, c = T(U1.vals[1]), T(U1.vals[2])
+    step = 1<<(ibit-1)
+    ctrl = controller([ibit], [0])
+    kf = u1pm_kernel(ctrl, step, c, b)
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
+end
+
+# identity
+u1apply!(state::CuVecOrMat, U1::IMatrix, ibit::Int) = state
+
+################## XYZ #############
+xapply!(state::CuVecOrMat, bits::Ints) = cxapply!(state, (), (), bits)
+function cxapply!(state::CuVecOrMat{T}, cbits, cvals, bits::Ints) where T
+    length(bits) == 0 && return state
+    c = controller([cbits..., bits[1]], [cvals..., 0])
+    mask = bmask(bits...)
+
+    kf = x_kernel(mask, c)
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
+end
+cxapply!(state::CuVecOrMat, cbit::Int, cval::Int, b2::Int) = cxapply!(state, [cbit], cval, b2)
 
 function yapply!(state::CuVecOrMat{T}, bits::Ints{Int}) where T
     length(bits) == 0 && return state
@@ -65,72 +100,88 @@ function yapply!(state::CuVecOrMat{T}, bits::Ints{Int}) where T
     c = controller(bits[1], 0)
     bit_parity = length(bits)%2 == 0 ? 1 : -1
     factor = T(-im)^length(bits)
-    X, Y = cudiv(size(state, 1))
-    @cuda threads=X blocks=Y _ykernel(state, mask, c, factor, bit_parity)
-    state
-end
 
-function _zlike_apply!(widget, state::CuVecOrMat, bits::Ints{Int})
-    mask = bmask(Int, bits...)
-    state .= widget.(mask, state, basis(state))
-end
-
-function _czlike_apply!(widget, state::CuVecOrMat{T}, cbits, cvals, b2::Int) where T
-    c = controller([cbits..., b2[1]], [cvals..., 1])
-    f = (v, b) -> c(b) ? widget(v) : v
-    state .= f.(state, basis(state))
-    state
-end
-
-for (G, FACTOR) in zip([:z, :s, :t, :sdag, :tdag], [:(-1), :(im), :($(exp(im*π/4))), :(-im), :($(exp(-im*π/4)))])
-    FUNC = Symbol(G, :apply!)
-    CFUNC = Symbol(:c, G, :apply!)
-    WIDGET_N = Symbol(G, :_widget_n)
-    WIDGET_1 = Symbol(G, :_widget_1)
-    if G == :z
-        WIDGET_N = :((mask, v, b)->count_ones(b&mask)%2==1 ? -v : v)
-        WIDGET_1 = :((mask, v, b)->testany(b, mask) ? -v : v)
-        WIDGET_C = :(v->-v)
-    else
-        WIDGET_N = :((mask, v, b)-> $FACTOR^count_ones(b&mask) * v)
-        WIDGET_1 = :((mask, v, b)->testany(b, mask) ? $FACTOR*v : v)
-        WIDGET_C = :(v->v*$FACTOR)
-    end
-    @eval $FUNC(state::CuVecOrMat, bits::Ints{Int}) = _zlike_apply!($WIDGET_N, state, bits)
-    @eval $FUNC(state::CuVecOrMat, bit::Int) = _zlike_apply!($WIDGET_1, state, bit)
-    @eval $CFUNC(state::CuVecOrMat, cbits, cvals, bit::Int) = _czlike_apply!($WIDGET_C, state, cbits, cvals, bit)
-end
-
-################### Multi Controlled Version ####################
-function cxapply!(state::CuVecOrMat{T}, cbits, cvals, bits::Ints) where T
-    length(bits) == 0 && return state
-    c = controller([cbits..., bits[1]], [cvals..., 0])
-    mask = bmask(bits...)
-    X, Y = cudiv(size(state, 1))
-    @cuda threads=X blocks=Y _xkernel(state, mask, c)
+    kf = y_kernel(mask, c, factor, bit_parity)
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
     state
 end
 
 function cyapply!(state::CuVecOrMat, cbits, cvals, bit::Int)
     c = controller([cbits..., bit], [cvals..., 0])
     mask = bmask(bit)
-    function kernel(state, mask, c)
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        b = i-1
-        if c(b)
-            i_ = flip(b, mask) + 1
-            swaprows!(state, i, i_, im, -im)
-        end
-        return
-    end
-    X, Y = cudiv(size(state, 1))
-    @cuda threads=X blocks=Y kernel(state, mask, c)
+
+    kf = cy_kernel(mask, c)
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
+end
+cyapply!(state::CuVecOrMat, cbit::Int, cval::Int, b2::Int) = cyapply!(state, [cbit], cval, b2)
+
+function zapply!(state::CuVecOrMat, bits::Ints{Int})
+    length(bits) == 0 && return state
+    mask = bmask(bits...)
+
+    kf = z_kernel(mask)
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
     state
 end
 
-cyapply!(state::CuVecOrMat, cbit::Int, cval::Int, b2::Int) = cyapply!(state, [cbit], cval, b2)
-cxapply!(state::CuVecOrMat, cbit::Int, cval::Int, b2::Int) = cxapply!(state, [cbit], cval, b2)
+function zapply!(state::CuVecOrMat, bit::Int)
+    mask = bmask(bit)
+
+    kf = u1diag_kernel(mask, 1, -1)
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
+end
+
+function _zlike_apply!(state::CuVecOrMat, bits::Ints; factor)
+    length(bits) == 0 && return state
+    mask = bmask(bits...)
+
+    kf = zlike_kernel(mask, factor)
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
+end
+
+function _czapply!(state::CuVecOrMat{T}, cbits, cvals, b2::Int; factor) where T
+    c = controller([cbits..., b2[1]], [cvals..., 1])
+
+    kf = cdg_kernel(c, 1, factor)
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
+end
+czapply!(state::CuVecOrMat, cbits, cvals, b2::Int) = _czapply!(state, cbits, cvals, b2, factor=-1)
 czapply!(state::CuVecOrMat, cbit::Int, cval::Int, b2::Int) = czapply!(state, [cbit], cval, b2)
+
+#=
+nbit = 6
+N = 1<<nbit
+LOC1 = SVector{2}([0, 1])
+vn = randn(ComplexF32, N, 3)
+v1 = randn(ComplexF32, N)
+unapply!(vn |> cu, mat(H), (3,)) |> Matrix ≈ unapply!(vn |> copy, mat(H), (3,))
+u1apply!(vn |> cu, mat(H), 3) |> Matrix ≈ u1apply!(vn |> copy, mat(H), 3)
+czapply!(vn |> cu, [5], [1], 3) |> Matrix ≈ czapply!(vn |> copy, [5], [1], 3)
+czapply!(v1 |> cu, [5], [1], 3) |> Vector ≈ czapply!(v1 |> copy, [5], [1], 3)
+zapply!(vn |> cu, 3) |> Matrix ≈ zapply!(vn |> copy, 3)
+zapply!(v1 |> cu, [3,1,4]) |> Vector ≈ zapply!(v1 |> copy, [3,1,4])
+@device_code_warntype unapply!(vn |> cu, mat(H), (3,))
+
+# =#
+for (G, FACTOR) in zip([:s, :t, :sdag, :tdag], [:(im), :($(exp(im*π/4))), :(-im), :($(exp(-im*π/4)))])
+    FUNC = Symbol(G, :apply!)
+    CFUNC = Symbol(:c, G, :apply!)
+    @eval $FUNC(state::CuVecOrMat, bits::Ints{Int}) = _zlike_apply!(state, bits, factor=$FACTOR)
+    @eval $FUNC(state::CuVecOrMat, bit::Int) = _zlike_apply!(state, bit, factor=$FACTOR)
+    @eval $CFUNC(state::CuVecOrMat, cbits, cvals, bit::Int) = _czapply!(state, cbits, cvals, bit, factor=$FACTOR)
+end
+
+################### Multi Controlled Version ####################
 
 #= Testing Code
 using BenchmarkTools
