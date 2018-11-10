@@ -1,5 +1,5 @@
 module CuYao
-using LuxurySparse, StaticArrays, LinearAlgebra
+using LuxurySparse, StaticArrays, LinearAlgebra, Base.Cartesian
 using StatsBase
 
 using Yao, Yao.Blocks, Yao.Intrinsics, Yao.Boost

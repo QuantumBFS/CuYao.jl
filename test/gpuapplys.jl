@@ -27,7 +27,7 @@ end
 
     for U1 in [mat(H), mat(Y), mat(Z), mat(I2), mat(P0)]
         @test u1apply!(v1 |> cu, U1, 3) |> Vector ≈ u1apply!(v1 |> copy, U1, 3)
-        #@test u1apply!(vn |> cu, U1, 3) |> Matrix ≈ u1apply!(vn |> copy, U1, 3)
+        @test u1apply!(vn |> cu, U1, 3) |> Matrix ≈ u1apply!(vn |> copy, U1, 3)
     end
     # sparse matrix like P0, P1 et. al. are not implemented.
 end
@@ -40,6 +40,7 @@ end
     vn = randn(ComplexF32, N, 3)
 
     for func in [xapply!, yapply!, zapply!]#, tapply!, tdagapply!, sapply!, sdagapply!]
+        @show func
         @test func(v1 |> cu, 3) |> Vector ≈ func(v1 |> copy, 3)
         @test func(vn |> cu, 3) |> Matrix ≈ func(vn |> copy, 3)
         @test func(v1 |> cu, [1,3,4]) |> Vector ≈ func(v1 |> copy, [1,3,4])
@@ -55,6 +56,7 @@ end
     vn = randn(ComplexF32, N, 3)
 
     for func in [cxapply!, cyapply!, czapply!]#, ctapply!, ctdagapply!, csapply!, csdagapply!]
+        @show func
         @test func(v1 |> cu, (4,5), (0, 1), 3) |> Vector ≈ func(v1 |> copy, (4,5), (0, 1), 3)
         @test func(vn |> cu, (4,5), (0, 1), 3) |> Matrix ≈ func(vn |> copy, (4,5), (0, 1), 3)
         @test func(v1 |> cu, 1, 1, 3) |> Vector ≈ func(v1 |> copy, 1, 1,3)

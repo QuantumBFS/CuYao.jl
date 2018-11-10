@@ -31,33 +31,65 @@ function measure(reg::GPUReg{B}, nshot::Int=1) where B
 end
 
 function measure_remove!(reg::GPUReg{B}) where B
-    state = reg |> rank3
-    nstate = similar(reg.state, 1<<nremain(reg), B)
-    pl = dropdims(sum(state .|> abs2, dims=2), dims=2)
+    regm = reg |> rank3
+    nregm = similar(regm, 1<<nremain(reg), B)
+    pl = dropdims(reduce((x,y)->x+abs2(y), regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
-    res = Vector{Int}(undef, B)
-    @inbounds for ib = 1:B
-        ires = _measure(view(pl_cpu, :, ib), 1)[]
-        nstate[:,ib] = state[ires+1,:,ib]./sqrt(pl_cpu[ires+1, ib])
-        res[ib] = ires
+    res = CuArray(map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B))
+    gpu_call(nregm, (nregm, regm, res, pl)) do state, nregm, regm, res, pl
+        i,j = @cartesianidx nregm
+        nregm[i,j] = regm[res[j]+1,i,j]/sqrt(pl[res[j]+1, j])
+        return
     end
-    reg.state = reshape(nstate,1,:)
+    reg.state = reshape(nregm,1,:)
     res
 end
+
+function measure!(reg::GPUReg{B, T}) where {B, T}
+    regm = reg |> rank3
+    pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
+    pl_cpu = pl |> Matrix
+    res = CuArray(map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B))
+    gpu_call(regm, (regm, res, pl)) do state, regm, res, pl
+        k,i,j = @cartesianidx regm
+        @inbounds rind = res[j] + 1
+        @inbounds regm[rind,i,j] = k==rind ? regm[rind,i,j]/sqrt(pl[rind, j]) : T(0)
+        return
+    end
+    res
+end
+
+function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
+    regm = reg |> rank3
+    pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
+    pl_cpu = pl |> Matrix
+    res = CuArray(map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B))
+    gpu_call(regm, (regm, res, pl)) do state, regm, res, pl
+        k,i,j = @cartesianidx regm
+        @inbounds rind = res[j] + 1
+        @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/sqrt(pl[rind, j]))
+        CuArrays.sync_threads()
+        @inbounds k!=val+1 && (regm[k,i,j] = 0)
+        return
+    end
+    res
+end
+
+#=function kernel(regm, res, pl)
+    ki = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    j = (blockIdx().y-1) * blockDim().y + threadIdx().y
+    K = size(regm,1)
+    k = (ki-1)%K + 1
+    i = (ki-1)÷K + 1
+    rind = res[j] + 1
+    regm[k,i,j] = k==rind ? regm[k,i,j]/sqrt(pl[rind, j]) : T(0)
+    return
+end
+threads, blocks = cudiv(size(regm,1)*size(regm,2), size(regm, 3))
+@cuda threads=threads blocks=blocks kernel(regm, res, pl)
+# =#
 
 #=
-function measure!(reg::GPUReg{B}) where B
-    state = reg |> rank3
-    nstate = zero(state)
-    res = measure_remove!(reg)
-    _nstate = reshape(reg.state, :, B)
-    for ib in 1:B
-        @inbounds nstate[res[ib]+1, :, ib] = _nstate[:,ib]
-    end
-    reg.state = reshape(nstate, size(state, 1), :)
-    res
-end
-
 function _measure(pl::CuVector, ntimes::Int)
     sample(0:length(pl)-1, Weights(pl), ntimes)
 end
