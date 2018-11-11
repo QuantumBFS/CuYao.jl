@@ -41,7 +41,7 @@ function measure_remove!(reg::GPUReg{B}) where B
     res = CuArray(res_cpu)
     gpu_call(nregm, (nregm, regm, res, pl)) do state, nregm, regm, res, pl
         i,j = @cartesianidx nregm
-        @inbounds nregm[i,j] = regm[res[j]+1,i,j]/sqrt(pl[res[j]+1, j])
+        @inbounds nregm[i,j] = regm[res[j]+1,i,j]/CUDAnative.sqrt(pl[res[j]+1, j])
         return
     end
     reg.state = reshape(nregm,1,:)
@@ -56,7 +56,7 @@ function measure!(reg::GPUReg{B, T}) where {B, T}
     gpu_call(regm, (regm, res, pl)) do state, regm, res, pl
         k,i,j = @cartesianidx regm
         @inbounds rind = res[j] + 1
-        @inbounds regm[rind,i,j] = k==rind ? regm[rind,i,j]/sqrt(pl[rind, j]) : T(0)
+        @inbounds regm[rind,i,j] = k==rind ? regm[rind,i,j]/CUDAnative.sqrt(pl[rind, j]) : T(0)
         return
     end
     res
@@ -70,7 +70,7 @@ function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
     gpu_call(regm, (regm, res, pl)) do state, regm, res, pl
         k,i,j = @cartesianidx regm
         @inbounds rind = res[j] + 1
-        @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/sqrt(pl[rind, j]))
+        @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDAnative.sqrt(pl[rind, j]))
         CuArrays.sync_threads()
         @inbounds k!=val+1 && (regm[k,i,j] = 0)
         return
