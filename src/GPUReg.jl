@@ -33,7 +33,7 @@ end
 function measure_remove!(reg::GPUReg{B}) where B
     regm = reg |> rank3
     nregm = similar(regm, 1<<nremain(reg), B)
-    pl = dropdims(reduce((x,y)->x+abs2(y), regm, dims=2), dims=2)
+    pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
     res = CuArray(map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B))
     gpu_call(nregm, (nregm, regm, res, pl)) do state, nregm, regm, res, pl

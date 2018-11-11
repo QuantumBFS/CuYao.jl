@@ -70,14 +70,6 @@ a = randn(1<<10)
 ca = a |> cu
 fs = (fx, fz)
 
-import Yao.Intrinsics: controller
-function controller(cbits::Ints{Int}, cvals::Ints{Int})
-    do_mask = bmask(cbits...)
-    onepos = cvals.==1
-    onemask = any(onepos) ? bmask(cbits[onepos]...) : DInt(0)
-    return b->testval(b, do_mask, onemask)
-end
-
 @benchmark gpu_call(ca, (fs, ca)) do state, f, ca
     #ilin = linear_index(state)
     ilin = @cartesianidx ca
