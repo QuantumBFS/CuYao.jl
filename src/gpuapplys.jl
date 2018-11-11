@@ -14,24 +14,24 @@ import Yao.Boost: zapply!, xapply!, yapply!, cxapply!, cyapply!, czapply!, sappl
 include("kernels.jl")
 
 ###################### unapply! ############################
-function cunapply!(stt::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::AbstractMatrix, locs::NTuple{M, Int}) where {C, M}
+function cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::AbstractMatrix, locs::NTuple{M, Int}) where {C, M}
     # reorder a unirary matrix.
-    kf = un_kernel(nactive(stt), cbits, cvals, U0, locs)
+    kf = un_kernel(nactive(state), cbits, cvals, U0, locs)
 
-    X, Y = cudiv(size(stt)...)
-    @cuda threads=X blocks=Y simple_kernel(kf, stt)
-    stt
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
 end
-cunapply!(stt::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::IMatrix, locs::NTuple{M, Int}) where {C, M} = stt
-cunapply!(stt::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}) where {C, M} = cunapply!(stt, cbits, cvals, U0 |> Matrix, locs)
+cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::IMatrix, locs::NTuple{M, Int}) where {C, M} = state
+cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}) where {C, M} = cunapply!(state, cbits, cvals, U0 |> Matrix, locs)
 
 ################## General U1 apply! ###################
 for MT in [:SDDiagonal, :SDPermMatrix, :SDMatrix, :IMatrix, :SDSparseMatrixCSC]
-@eval function u1apply!(stt::CuVecOrMat, U1::$MT, ibit::Int)
+@eval function u1apply!(state::CuVecOrMat, U1::$MT, ibit::Int)
     kf = u1_kernel(U1, ibit::Int)
-    X, Y = cudiv(size(stt)...)
-    @cuda threads=X blocks=Y simple_kernel(kf, stt)
-    stt
+    X, Y = cudiv(size(state)...)
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
 end
 end
 
@@ -39,25 +39,25 @@ end
 for G in [:x, :y, :z, :s, :t, :sdag, :tdag]
     KERNEL = Symbol(G, :_kernel)
     FUNC = Symbol(G, :apply!)
-    @eval function $FUNC(stt::CuVecOrMat, bits::Ints{Int})
-        length(bits) == 0 && return stt
+    @eval function $FUNC(state::CuVecOrMat, bits::Ints{Int})
+        length(bits) == 0 && return state
 
         kf = $KERNEL(bits)
-        X, Y = cudiv(size(stt)...)
-        @cuda threads=X blocks=Y simple_kernel(kf, stt)
-        stt
+        X, Y = cudiv(size(state)...)
+        @cuda threads=X blocks=Y simple_kernel(kf, state)
+        state
     end
-    @eval $FUNC(stt::CuVecOrMat, bit::Int) = invoke($FUNC, Tuple{CuVecOrMat, Ints{Int}}, stt, bit)
+    @eval $FUNC(state::CuVecOrMat, bit::Int) = invoke($FUNC, Tuple{CuVecOrMat, Ints{Int}}, state, bit)
 
     CFUNC = Symbol(:c, FUNC)
     CKERNEL = Symbol(:c, KERNEL)
-    @eval function $CFUNC(stt::CuVecOrMat, cbits, cvals, bits::Int)
+    @eval function $CFUNC(state::CuVecOrMat, cbits, cvals, bits::Int)
         kf = $CKERNEL(cbits, cvals, bits)
-        X, Y = cudiv(size(stt)...)
-        @cuda threads=X blocks=Y simple_kernel(kf, stt)
-        stt
+        X, Y = cudiv(size(state)...)
+        @cuda threads=X blocks=Y simple_kernel(kf, state)
+        state
     end
-    @eval $CFUNC(stt::CuVecOrMat, cbit::Int, cval::Int, ibit::Int) = invoke($CFUNC, Tuple{CuVecOrMat, Any, Any, Int}, stt, cbit, cval, ibit)
+    @eval $CFUNC(state::CuVecOrMat, cbit::Int, cval::Int, ibit::Int) = invoke($CFUNC, Tuple{CuVecOrMat, Any, Any, Int}, state, cbit, cval, ibit)
 end
 
 #=
