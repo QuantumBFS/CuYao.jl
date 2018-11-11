@@ -19,3 +19,10 @@ function LinearAlgebra.permutedims!(dest::GPUArray, src::GPUArray, perm) where N
     end
     return dest
 end
+
+# TODO
+# support norm(view(reshape(A, m, n), :, 1))
+using LinearAlgebra
+import LinearAlgebra: norm
+const CuSubArr{T, N} = Union{CuArray{T, N}, SubArray{T, N, <:CuArray}}
+norm2(A::CuSubArr; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> sqrt

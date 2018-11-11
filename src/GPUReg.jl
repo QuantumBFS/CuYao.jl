@@ -15,6 +15,7 @@ include("CUDApatch.jl")
 
 import CuArrays: cu
 import Yao.Registers: _measure, measure, measure!, measure_reset!, measure_remove!
+import Yao.Intrinsics: batch_normalize!
 
 export cpu, cu, GPUReg
 
@@ -23,11 +24,12 @@ cpu(reg::DefaultRegister{B}) where B = DefaultRegister{B}(collect(reg.state))
 const GPUReg{B, T, MT} = DefaultRegister{B, T, MT} where MT<:GPUArray
 
 ############### MEASURE ##################
-measure(reg::GPUReg{1}, nshot::Int=1) = _measure(reg |> probs |> Vector, nshot)
+measure(reg::GPUReg{1}; nshot::Int=1) = _measure(reg |> probs |> Vector, nshot)
 # TODO: optimize the batch dimension using parallel sampling
-function measure(reg::GPUReg{B}, nshot::Int=1) where B
-    pl = dropdims(sum(reg |> rank3 .|> abs2 |> Array, dims=2), dims=2)
-    _measure(pl, nshot)
+function measure(reg::GPUReg{B}; nshot::Int=1) where B
+    regm = reg |> rank3
+    pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
+    _measure(pl |> Matrix, nshot)
 end
 
 function measure_remove!(reg::GPUReg{B}) where B
@@ -35,14 +37,15 @@ function measure_remove!(reg::GPUReg{B}) where B
     nregm = similar(regm, 1<<nremain(reg), B)
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
-    res = CuArray(map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B))
+    res_cpu = map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B)
+    res = CuArray(res_cpu)
     gpu_call(nregm, (nregm, regm, res, pl)) do state, nregm, regm, res, pl
         i,j = @cartesianidx nregm
-        nregm[i,j] = regm[res[j]+1,i,j]/sqrt(pl[res[j]+1, j])
+        @inbounds nregm[i,j] = regm[res[j]+1,i,j]/sqrt(pl[res[j]+1, j])
         return
     end
     reg.state = reshape(nregm,1,:)
-    res
+    res_cpu
 end
 
 function measure!(reg::GPUReg{B, T}) where {B, T}
@@ -73,6 +76,12 @@ function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
         return
     end
     res
+end
+
+function batch_normalize!(s::CuSubArr, p::Real=2)
+    p!=2 && throw(ArgumentError("p must be 2!"))
+    s./=norm2(s, dims=1)
+    s
 end
 
 #=function kernel(regm, res, pl)
