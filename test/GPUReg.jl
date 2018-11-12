@@ -30,12 +30,20 @@ end
             greg1 = greg |> copy |> focus!(1,4,3)
             greg0 = copy(greg1)
             res = measure_remove!(greg1)
-            @test select(greg0, res) |> normalize! |> cpu ≈ greg1 |> cpu
+            @test select(greg0, res |> Vector) |> normalize! |> cpu ≈ greg1 |> cpu
         end
 
         greg1 = greg |> copy
         greg1 = rand_state(10,3)
         res = measure_reset!(greg1, val=3)
         @test all(measure(greg1, nshot=10) .== 3)
+        @test greg1 |> isnormalized
+        println(select.(greg |> cpu, res |> Vector) .|> normalize! .≈ select.(greg1 |> cpu, 3))
+        @test all(select.(greg |> cpu, res |> Vector) .|> normalize! .≈ select.(greg1 |> cpu, 3))
+
+        greg1 = greg |> copy |> focus!(1,4,3)
+        greg0 = copy(greg1)
+        res = measure!(greg1)
+        @test all(select.(greg0 |> cpu, res |> Vector) .|> normalize! .≈ select.(greg1 |> cpu, res|>Vector))
     end
 end

@@ -1,22 +1,3 @@
-export piecewise, cudiv
-@inline function cudiv(x::Int)
-    max_threads = 256
-    threads_x = min(max_threads, x)
-    threads_x, ceil(Int, x/threads_x)
-end
-
-@inline function cudiv(x::Int, y::Int)
-    max_threads = 256
-    threads_x = min(max_threads, x)
-    threads_y = min(max_threads ÷ threads_x, y)
-    threads = (threads_x, threads_y)
-    blocks = ceil.(Int, (x, y) ./ threads)
-    threads, blocks
-end
-
-piecewise(state::AbstractVector, inds) = state
-piecewise(state::AbstractMatrix, inds) = @inbounds view(state,:,inds[2])
-
 @inline function un_kernel(nbit::Int, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::AbstractMatrix, locs::NTuple{M, Int}) where {C, M}
     U = (all(diff(locs).>0) ? U0 : reorder(U0, collect(locs)|>sortperm)) |> staticize
     MM = size(U0, 1)

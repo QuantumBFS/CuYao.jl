@@ -23,6 +23,12 @@ cu(reg::DefaultRegister{B}) where B = DefaultRegister{B}(cu(reg.state))
 cpu(reg::DefaultRegister{B}) where B = DefaultRegister{B}(collect(reg.state))
 const GPUReg{B, T, MT} = DefaultRegister{B, T, MT} where MT<:GPUArray
 
+function batch_normalize!(s::CuSubArr, p::Real=2)
+    p!=2 && throw(ArgumentError("p must be 2!"))
+    s./=norm2(s, dims=1)
+    s
+end
+
 ############### MEASURE ##################
 measure(reg::GPUReg{1}; nshot::Int=1) = _measure(reg |> probs |> Vector, nshot)
 # TODO: optimize the batch dimension using parallel sampling
@@ -40,25 +46,31 @@ function measure_remove!(reg::GPUReg{B}) where B
     res_cpu = map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
     gpu_call(nregm, (nregm, regm, res, pl)) do state, nregm, regm, res, pl
-        i,j = @cartesianidx nregm
+        i,j = @cartesianidx nregm state
         @inbounds nregm[i,j] = regm[res[j]+1,i,j]/CUDAnative.sqrt(pl[res[j]+1, j])
         return
     end
     reg.state = reshape(nregm,1,:)
-    res_cpu
+    res
 end
 
 function measure!(reg::GPUReg{B, T}) where {B, T}
     regm = reg |> rank3
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
-    res = CuArray(map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B))
-    gpu_call(regm, (regm, res, pl)) do state, regm, res, pl
-        k,i,j = @cartesianidx regm
-        @inbounds rind = res[j] + 1
-        @inbounds regm[rind,i,j] = k==rind ? regm[rind,i,j]/CUDAnative.sqrt(pl[rind, j]) : T(0)
+    res_cpu = map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B)
+    res = CuArray(res_cpu)
+
+    @inline function kernel(regm, res, pl)
+        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        k,i,j = GPUArrays.gpu_ind2sub(regm, state)
+        rind = res[j] + 1
+        regm[k,i,j] = k==rind ? regm[k,i,j]/CUDAnative.sqrt(pl[k, j]) : T(0)
         return
     end
+
+    X, Y = cudiv(length(regm))
+    @cuda threads=X blocks=Y kernel(regm, res, pl)
     res
 end
 
@@ -66,8 +78,10 @@ function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
     regm = reg |> rank3
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
-    res = CuArray(map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B))
-    gpu_call(regm, (regm, res, pl)) do state, regm, res, pl
+    res_cpu = map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B)
+    res = CuArray(res_cpu)
+
+    @inline function kernel(regm, res, pl)
         k,i,j = @cartesianidx regm
         @inbounds rind = res[j] + 1
         @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDAnative.sqrt(pl[rind, j]))
@@ -75,13 +89,10 @@ function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
         @inbounds k!=val+1 && (regm[k,i,j] = 0)
         return
     end
-    res
-end
 
-function batch_normalize!(s::CuSubArr, p::Real=2)
-    p!=2 && throw(ArgumentError("p must be 2!"))
-    s./=norm2(s, dims=1)
-    s
+    X, Y = cudiv(length(regm))
+    @cuda threads=X blocks=Y kernel(regm, res, pl)
+    res
 end
 
 #=function kernel(regm, res, pl)

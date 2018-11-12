@@ -22,7 +22,28 @@ end
 
 # TODO
 # support norm(view(reshape(A, m, n), :, 1))
+# support view(A, :, 1, :)[:,1]
+# k,i,j = GPUArrays.gpu_ind2sub(regm, state), @cuprinf don't work
 using LinearAlgebra
 import LinearAlgebra: norm
 const CuSubArr{T, N} = Union{CuArray{T, N}, SubArray{T, N, <:CuArray}}
 norm2(A::CuSubArr; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> sqrt
+
+export piecewise, cudiv
+@inline function cudiv(x::Int)
+    max_threads = 256
+    threads_x = min(max_threads, x)
+    threads_x, ceil(Int, x/threads_x)
+end
+
+@inline function cudiv(x::Int, y::Int)
+    max_threads = 256
+    threads_x = min(max_threads, x)
+    threads_y = min(max_threads ÷ threads_x, y)
+    threads = (threads_x, threads_y)
+    blocks = ceil.(Int, (x, y) ./ threads)
+    threads, blocks
+end
+
+piecewise(state::AbstractVector, inds) = state
+piecewise(state::AbstractMatrix, inds) = @inbounds view(state,:,inds[2])
