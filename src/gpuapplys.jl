@@ -8,10 +8,12 @@ CuArrays.allowscalar(false)
 using LuxurySparse, StaticArrays, LinearAlgebra
 =#
 
-import Yao.Intrinsics: unrows!, u1apply!, _unapply!, swaprows!, cunapply!
+import Yao.Intrinsics: unrows!, u1apply!, _unapply!, swaprows!, cunapply!, autostatic
 import Yao.Boost: zapply!, xapply!, yapply!, cxapply!, cyapply!, czapply!, sapply!, sdagapply!, tapply!, tdagapply!
 
 include("kernels.jl")
+
+autostatic(A::AbstractVecOrMat) = A |> staticize
 
 ###################### unapply! ############################
 function cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::AbstractMatrix, locs::NTuple{M, Int}) where {C, M}

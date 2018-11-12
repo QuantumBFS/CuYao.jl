@@ -3,8 +3,7 @@ using LuxurySparse, StaticArrays, LinearAlgebra, Base.Cartesian
 using StatsBase
 
 using Yao, Yao.Blocks, Yao.Intrinsics, Yao.Boost
-using Yao.Intrinsics: autostatic
-
+using Yao.Intrinsics: autostatic, staticize
 using GPUArrays, CuArrays, CUDAnative
 CuArrays.allowscalar(false)
 
