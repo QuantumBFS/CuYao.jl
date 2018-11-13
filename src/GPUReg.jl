@@ -64,8 +64,8 @@ function measure!(reg::GPUReg{B, T}) where {B, T}
     @inline function kernel(regm, res, pl)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
         k,i,j = GPUArrays.gpu_ind2sub(regm, state)
-        rind = res[j] + 1
-        regm[k,i,j] = k==rind ? regm[k,i,j]/CUDAnative.sqrt(pl[k, j]) : T(0)
+        @inbounds rind = res[j] + 1
+        @inbounds regm[k,i,j] = k==rind ? regm[k,i,j]/CUDAnative.sqrt(pl[k, j]) : T(0)
         return
     end
 
@@ -81,8 +81,9 @@ function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
     res_cpu = map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
 
-    @inline function kernel(regm, res, pl)
-        k,i,j = @cartesianidx regm
+    @inline function kernel(regm, res, pl, val)
+        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        k,i,j = GPUArrays.gpu_ind2sub(regm, state)
         @inbounds rind = res[j] + 1
         @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDAnative.sqrt(pl[rind, j]))
         CuArrays.sync_threads()
@@ -91,7 +92,7 @@ function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
     end
 
     X, Y = cudiv(length(regm))
-    @cuda threads=X blocks=Y kernel(regm, res, pl)
+    @cuda threads=X blocks=Y kernel(regm, res, pl, val)
     res
 end
 
