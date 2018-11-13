@@ -1,6 +1,7 @@
 using Yao
 using Test
 using CuYao
+using CuYao: tri2ij
 using LinearAlgebra
 using Yao.Intrinsics
 
@@ -10,6 +11,19 @@ using Yao.Intrinsics
     batch_normalize!(ca)
     batch_normalize!(a)
     @test ca |> Matrix ≈ a
+
+    for l = 1:100
+        i, j = tri2ij(l)
+        @test (i-1)*(i-2)÷2+j == l
+    end
+
+    sf(x, y) = abs(x-y)
+    a = randn(1024)
+    ca = a |> cu
+    b = randn(1024)
+    cb = b |> cu
+    @test expect(StatFunctional{2}(sf), a, b) ≈ expect(StatFunctional{2}(sf), ca, cb)
+    @test expect(StatFunctional{2}(sf), a) ≈ expect(StatFunctional{2}(sf), ca)
 end
 
 @testset "constructor an measure" begin

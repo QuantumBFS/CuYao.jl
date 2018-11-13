@@ -23,6 +23,7 @@ Supported Gate List
 - [ ] better T, S gate # replys on merge of Boosted T, S gates.
 - [x] better control gates
 - [x] BP diff blocks
+- [x] statistic functional diff blocks
 
 Supported Operations
 - [x] measure!, measure_reset!, measure_remove!, select

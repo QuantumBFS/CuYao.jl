@@ -1,21 +1,7 @@
-# TODO fix focus!(reg, non-continuous bits)
-#=
-using BenchmarkTools, Test
-using Yao
-using Yao.Blocks
-using LinearAlgebra, LuxurySparse
-using StatsBase
-
-using GPUArrays
-using CuArrays
-using CUDAnative
-CuArrays.allowscalar(false)
-include("CUDApatch.jl")
-# =#
-
 import CuArrays: cu
 import Yao.Registers: _measure, measure, measure!, measure_reset!, measure_remove!
 import Yao.Intrinsics: batch_normalize!
+import Yao: expect
 
 export cpu, cu, GPUReg
 
@@ -27,6 +13,25 @@ function batch_normalize!(s::CuSubArr, p::Real=2)
     p!=2 && throw(ArgumentError("p must be 2!"))
     s./=norm2(s, dims=1)
     s
+end
+
+@inline function tri2ij(l::Int)
+    i = ceil(Int, sqrt(2*l+0.25)-0.5)
+    j = l-i*(i-1)÷2
+    i+1,j
+end
+
+function expect(stat::StatFunctional{2, <:Function}, xs::CuVector{T}) where T
+    N = length(xs)
+    s = reduce(+, stat.data.(xs', xs))
+    d = mapreduce(xi->stat.data(xi, xi), +, xs)
+    (s-d)/(N*(N-1))
+end
+
+function expect(stat::StatFunctional{2, <:Function}, xs::CuVector, ys::CuVector)
+    M = length(xs)
+    N = length(ys)
+    reduce(+, stat.data.(xs', ys))/M/N
 end
 
 ############### MEASURE ##################
@@ -127,4 +132,22 @@ function _measure(pl::AbstractMatrix, ntimes::Int)
 end
 
 pl = rand_state(16, 3) |> probs |> cu
+
+function expect(stat::StatFunctional{2, <:Function}, xs::CuVector{T}) where T
+    N = length(xs)
+
+    function kernel(trid, xs)
+        l = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        i = CUDAnative.ceil(CUDAnative.sqrt(2l+0.25)-0.5) |> Int
+        j = l-i*(i-1)÷2
+        @inbounds trid[l] = stat.data(xs[i], xs[j])
+        return
+    end
+    L = binomial(N,2)
+    trid = CuArray(zeros(T, L))
+    X, Y = cudiv(L)
+    @cuda threads=X blocks=Y kernel(trid, xs)
+    StatsBase.mean(trid)
+end
+
 =#
