@@ -7,8 +7,8 @@ Under progress! To start
 ]add Yao#Design4GPU
 
 using Yao, CuYao
-cureg = rand_state(16) |> cu
-cureg |> put(16, 2=>Z)
+cureg = rand_state(9, 1000) |> cu
+cureg |> put(9, 2=>Z)
 measure!(cureg |> addbit(1) |> focus!(4,1,3)) |> relax!
 ```
 to run tests
