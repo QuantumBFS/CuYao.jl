@@ -20,7 +20,7 @@ Supported Gate List
 - [x] general U(N) gate
 - [x] general U(1) gate
 - [x] better X, Y, Z gate
-- [ ] better T, S gate # replys on merge of Boosted T, S gates.
+- [x] better T, S gate # replys on merge of Boosted T, S gates.
 - [x] better control gates
 - [x] BP diff blocks
 
@@ -31,4 +31,4 @@ Supported Operations
 - [x] focus!, relax!
 
 ### TODO
-- [ ] optimize over batch
+- [x] optimize over batch
