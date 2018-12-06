@@ -1,4 +1,4 @@
-using Yao, Yao.Boost, Yao.Intrinsics, StaticArrays, Yao.Blocks
+using Yao, Yao.Boost, Yao.Intrinsics, StaticArrays, Yao.Blocks, LinearAlgebra
 using Test
 using CuYao
 #include("../src/CuYao.jl")
@@ -39,7 +39,7 @@ end
     v1 = randn(ComplexF32, N)
     vn = randn(ComplexF32, N, 3)
 
-    for func in [xapply!, yapply!, zapply!]#, tapply!, tdagapply!, sapply!, sdagapply!]
+    for func in [xapply!, yapply!, zapply!, tapply!, tdagapply!, sapply!, sdagapply!]
         @test func(v1 |> cu, 3) |> Vector ≈ func(v1 |> copy, 3)
         @test func(vn |> cu, 3) |> Matrix ≈ func(vn |> copy, 3)
         @test func(v1 |> cu, [1,3,4]) |> Vector ≈ func(v1 |> copy, [1,3,4])
@@ -54,7 +54,7 @@ end
     v1 = randn(ComplexF32, N)
     vn = randn(ComplexF32, N, 3)
 
-    for func in [cxapply!, cyapply!, czapply!]#, ctapply!, ctdagapply!, csapply!, csdagapply!]
+    for func in [cxapply!, cyapply!, czapply!, ctapply!, ctdagapply!, csapply!, csdagapply!]
         @test func(v1 |> cu, (4,5), (0, 1), 3) |> Vector ≈ func(v1 |> copy, (4,5), (0, 1), 3)
         @test func(vn |> cu, (4,5), (0, 1), 3) |> Matrix ≈ func(vn |> copy, (4,5), (0, 1), 3)
         @test func(v1 |> cu, 1, 1, 3) |> Vector ≈ func(v1 |> copy, 1, 1,3)
@@ -105,4 +105,38 @@ end
     @test ψ isa GPUReg
     @test isapprox.(g1, g2, atol=1e-5) |> all
     @test isapprox.(g2, g3, atol=1e-5) |> all
+end
+
+@testset "stat diff" begin
+    nbit = 4
+    f(x::Number, y::Number) = Float64(abs(x-y) < 1.5)
+    x = 0:1<<nbit-1
+    h = f.(x', x)
+    V = StatFunctional(h)
+    VF = StatFunctional{2}(f)
+    c = chain(4, repeat(4, H, 1:4), put(4, 3=>Rz(0.5)) |> autodiff(:BP), control(2, 1=>X), put(4, 4=>Ry(0.2)) |> autodiff(:BP))
+    dispatch!(c, :random)
+    dbs = collect(c, AbstractDiff)
+
+    p0 = zero_state(nbit) |> c |> probs
+    sample0 = measure(zero_state(nbit) |> c, nshot=5000)
+    loss0 = expect(V, p0 |> as_weights)
+    gradsn = numdiff.(()->expect(V, zero_state(nbit) |> c |> probs |> as_weights), dbs)
+    gradse = statdiff.(()->zero_state(nbit) |> c |> probs |> as_weights, dbs, Ref(V), initial=p0 |> as_weights)
+    gradsf = statdiff.(()->measure(zero_state(nbit) |> c, nshot=5000), dbs, Ref(VF), initial=sample0)
+    @test all(isapprox.(gradse, gradsn, atol=1e-4))
+    @test norm(gradsf-gradse)/norm(gradsf) <= 0.2
+
+    # 1D
+    h = randn(1<<nbit)
+    V = StatFunctional(h)
+    c = chain(4, repeat(4, H, 1:4), put(4, 3=>Rz(0.5)) |> autodiff(:BP), control(2, 1=>X), put(4, 4=>Ry(0.2)) |> autodiff(:QC))
+    dispatch!(c, :random)
+    dbs = collect(c, AbstractDiff)
+
+    p0 = zero_state(nbit) |> c |> probs
+    loss0 = expect(V, p0 |> as_weights)
+    gradsn = numdiff.(()->expect(V, zero_state(nbit) |> c |> probs |> as_weights), dbs)
+    gradse = statdiff.(()->zero_state(nbit) |> c |> probs |> as_weights, dbs, Ref(V))
+    @test all(isapprox.(gradse, gradsn, atol=1e-4))
 end
