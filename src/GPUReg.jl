@@ -50,11 +50,14 @@ function measure_remove!(reg::GPUReg{B}) where B
     pl_cpu = pl |> Matrix
     res_cpu = map(ib->_measure(view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
-    gpu_call(nregm, (nregm, regm, res, pl)) do state, nregm, regm, res, pl
-        i,j = @cartesianidx nregm state
+    @inline function kernel(nregm, regm, res, pl)
+        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        i,j = GPUArrays.gpu_ind2sub(nregm, state)
         @inbounds nregm[i,j] = regm[res[j]+1,i,j]/CUDAnative.sqrt(pl[res[j]+1, j])
         return
     end
+    X, Y = cudiv(length(nregm))
+    @cuda threads=X blocks=Y kernel(nregm, regm, res, pl)
     reg.state = reshape(nregm,1,:)
     res
 end
