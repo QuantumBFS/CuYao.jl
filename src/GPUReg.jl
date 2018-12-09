@@ -52,8 +52,10 @@ function measure_remove!(reg::GPUReg{B}) where B
     res = CuArray(res_cpu)
     @inline function kernel(nregm, regm, res, pl)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        i,j = GPUArrays.gpu_ind2sub(nregm, state)
-        @inbounds nregm[i,j] = regm[res[j]+1,i,j]/CUDAnative.sqrt(pl[res[j]+1, j])
+        if state <= length(nregm)
+            i,j = GPUArrays.gpu_ind2sub(nregm, state)
+            @inbounds nregm[i,j] = regm[res[j]+1,i,j]/CUDAnative.sqrt(pl[res[j]+1, j])
+        end
         return
     end
     X, Y = cudiv(length(nregm))
@@ -71,9 +73,11 @@ function measure!(reg::GPUReg{B, T}) where {B, T}
 
     @inline function kernel(regm, res, pl)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        k,i,j = GPUArrays.gpu_ind2sub(regm, state)
-        @inbounds rind = res[j] + 1
-        @inbounds regm[k,i,j] = k==rind ? regm[k,i,j]/CUDAnative.sqrt(pl[k, j]) : T(0)
+        if state <= length(regm)
+            k,i,j = GPUArrays.gpu_ind2sub(regm, state)
+            @inbounds rind = res[j] + 1
+            @inbounds regm[k,i,j] = k==rind ? regm[k,i,j]/CUDAnative.sqrt(pl[k, j]) : T(0)
+        end
         return
     end
 
@@ -91,11 +95,13 @@ function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
 
     @inline function kernel(regm, res, pl, val)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        k,i,j = GPUArrays.gpu_ind2sub(regm, state)
-        @inbounds rind = res[j] + 1
-        @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDAnative.sqrt(pl[rind, j]))
-        CuArrays.sync_threads()
-        @inbounds k!=val+1 && (regm[k,i,j] = 0)
+        if state <= length(regm)
+            k,i,j = GPUArrays.gpu_ind2sub(regm, state)
+            @inbounds rind = res[j] + 1
+            @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDAnative.sqrt(pl[rind, j]))
+            CuArrays.sync_threads()
+            @inbounds k!=val+1 && (regm[k,i,j] = 0)
+        end
         return
     end
 
@@ -103,54 +109,3 @@ function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
     @cuda threads=X blocks=Y kernel(regm, res, pl, val)
     res
 end
-
-#=function kernel(regm, res, pl)
-    ki = (blockIdx().x-1) * blockDim().x + threadIdx().x
-    j = (blockIdx().y-1) * blockDim().y + threadIdx().y
-    K = size(regm,1)
-    k = (ki-1)%K + 1
-    i = (ki-1)÷K + 1
-    rind = res[j] + 1
-    regm[k,i,j] = k==rind ? regm[k,i,j]/sqrt(pl[rind, j]) : T(0)
-    return
-end
-threads, blocks = cudiv(size(regm,1)*size(regm,2), size(regm, 3))
-@cuda threads=threads blocks=blocks kernel(regm, res, pl)
-# =#
-
-#=
-function _measure(pl::CuVector, ntimes::Int)
-    sample(0:length(pl)-1, Weights(pl), ntimes)
-end
-_measure(pl::AbstractVector, ntimes::Int) = sample(0:length(pl)-1, Weights(pl), ntimes)
-
-function _measure(pl::AbstractMatrix, ntimes::Int)
-    B = size(pl, 2)
-    res = Matrix{Int}(undef, ntimes, B)
-   # CuArrays.QURAND.randn()
-    for ib=1:B
-        @inbounds res[:,ib] = _measure(view(pl,:,ib), ntimes)
-    end
-    res
-end
-
-pl = rand_state(16, 3) |> probs |> cu
-
-function expect(stat::StatFunctional{2, <:Function}, xs::CuVector{T}) where T
-    N = length(xs)
-
-    function kernel(trid, xs)
-        l = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        i = CUDAnative.ceil(CUDAnative.sqrt(2l+0.25)-0.5) |> Int
-        j = l-i*(i-1)÷2
-        @inbounds trid[l] = stat.data(xs[i], xs[j])
-        return
-    end
-    L = binomial(N,2)
-    trid = CuArray(zeros(T, L))
-    X, Y = cudiv(L)
-    @cuda threads=X blocks=Y kernel(trid, xs)
-    StatsBase.mean(trid)
-end
-
-=#
