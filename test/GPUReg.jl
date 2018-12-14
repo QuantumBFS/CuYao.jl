@@ -30,7 +30,7 @@ end
     reg = rand_state(10)
     greg = reg |> cu
     @test greg isa GPUReg
-    for reg in [rand_state(10, 3), rand_state(10)]
+    for reg in [rand_state(10, 333), rand_state(10)]
         greg = reg |> cu
         @test size(measure(greg |> copy, nshot=10)) == size(measure(reg, nshot=10))
         @test size(measure!(greg |> copy)) == size(measure!(reg |> copy))

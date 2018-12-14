@@ -1,6 +1,7 @@
 using Yao, Yao.Boost, Yao.Intrinsics, StaticArrays, Yao.Blocks, LinearAlgebra
 using Test
 using CuYao
+using StatsBase: Weights
 #include("../src/CuYao.jl")
 #using .CuYao
 
@@ -9,7 +10,7 @@ using CuYao
     N = 1<<nbit
     LOC1 = SVector{2}([0, 1])
     v1 = randn(ComplexF32, N)
-    vn = randn(ComplexF32, N, 3)
+    vn = randn(ComplexF32, N, 333)
 
     for U1 in [mat(H), mat(Y), mat(Z), mat(I2), mat(P0)]
         @test unapply!(v1 |> cu, U1, (3,)) |> Vector ≈ unapply!(v1 |> copy, U1, (3,))
@@ -23,7 +24,7 @@ end
     N = 1<<nbit
     LOC1 = SVector{2}([0, 1])
     v1 = randn(ComplexF32, N)
-    vn = randn(ComplexF32, N, 3)
+    vn = randn(ComplexF32, N, 333)
 
     for U1 in [mat(H), mat(Y), mat(Z), mat(I2), mat(P0)]
         @test u1apply!(v1 |> cu, U1, 3) |> Vector ≈ u1apply!(v1 |> copy, U1, 3)
@@ -37,7 +38,7 @@ end
     N = 1<<nbit
     LOC1 = SVector{2}([0, 1])
     v1 = randn(ComplexF32, N)
-    vn = randn(ComplexF32, N, 3)
+    vn = randn(ComplexF32, N, 333)
 
     for func in [xapply!, yapply!, zapply!, tapply!, tdagapply!, sapply!, sdagapply!]
         @test func(v1 |> cu, 3) |> Vector ≈ func(v1 |> copy, 3)
@@ -52,7 +53,7 @@ end
     N = 1<<nbit
     LOC1 = SVector{2}([0, 1])
     v1 = randn(ComplexF32, N)
-    vn = randn(ComplexF32, N, 3)
+    vn = randn(ComplexF32, N, 333)
 
     for func in [cxapply!, cyapply!, czapply!, ctapply!, ctdagapply!, csapply!, csdagapply!]
         @test func(v1 |> cu, (4,5), (0, 1), 3) |> Vector ≈ func(v1 |> copy, (4,5), (0, 1), 3)
@@ -115,15 +116,15 @@ end
     V = StatFunctional(h)
     VF = StatFunctional{2}(f)
     prs = [1=>2, 2=>3, 3=>1]
-    c = ibm_diff_circuit(nbit, 2, prs) |> autodiff(:QC)
+    c = chain(4, repeat(4, H, 1:4), put(4, 3=>Rz(0.5)) |> autodiff(:BP), control(2, 1=>X), put(4, 4=>Ry(0.2)) |> autodiff(:QC))
     dispatch!(c, :random)
     dbs = collect(c, AbstractDiff)
 
-    p0 = zero_state(nbit) |> c |> probs
+    p0 = zero_state(nbit) |> c |> probs |> Weights
     sample0 = measure(zero_state(nbit) |> c, nshot=5000)
     loss0 = expect(V, p0)
-    gradsn = numdiff.(()->expect(V, zero_state(nbit) |> c |> probs), dbs)
-    gradse = statdiff.(()->zero_state(nbit) |> c |> probs, dbs, Ref(V), initial=p0)
+    gradsn = numdiff.(()->expect(V, zero_state(nbit) |> c |> probs |> Weights), dbs)
+    gradse = statdiff.(()->zero_state(nbit) |> c |> probs |> Weights, dbs, Ref(V), initial=p0)
     gradsf = statdiff.(()->measure(zero_state(nbit) |> c, nshot=5000), dbs, Ref(VF), initial=sample0)
     @test all(isapprox.(gradse, gradsn, atol=1e-4))
     @test norm(gradsf-gradse)/norm(gradsf) <= 0.2

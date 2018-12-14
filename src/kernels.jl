@@ -139,7 +139,7 @@ build a simple kernel function from functions like f(::VecOrMat, inds).
         ex = :(inds = (blockIdx().x-1) * blockDim().x + threadIdx().x)
     else
         ex = :(inds = ((blockIdx().x-1) * blockDim().x + threadIdx().x,
-        (blockIdx().y-1) * blockDim().y + threadIdx().y))
+                       (blockIdx().y-1) * blockDim().y + threadIdx().y); inds[2]<=size(state, 2) || return nothing)
     end
     ex = :($ex; func(state, inds); nothing)
     ex
