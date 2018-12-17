@@ -29,7 +29,7 @@ cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::I
 cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}) where {C, M} = cunapply!(state, cbits, cvals, U0 |> Matrix, locs)
 
 ################## General U1 apply! ###################
-for MT in [:SDDiagonal, :SDPermMatrix, :SDMatrix, :IMatrix, :SDSparseMatrixCSC]
+for MT in [:SDDiagonal, :SDPermMatrix, :AbstractMatrix, :IMatrix, :SDSparseMatrixCSC]
 @eval function u1apply!(state::CuVecOrMat, U1::$MT, ibit::Int)
     kf = u1_kernel(U1, ibit::Int)
     X, Y = cudiv(size(state)...)

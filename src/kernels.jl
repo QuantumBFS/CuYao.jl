@@ -12,7 +12,7 @@
     end
 end
 
-@inline function u1_kernel(U1::SDMatrix, ibit::Int)
+@inline function u1_kernel(U1::AbstractMatrix, ibit::Int)
     a, c, b, d = U1
     step = 1<<(ibit-1)
     ctrl = controller(ibit, 0)
