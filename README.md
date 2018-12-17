@@ -21,6 +21,7 @@ Supported Gate List
 - [x] general U(1) gate
 - [x] better X, Y, Z gate
 - [x] better T, S gate
+- [x] SWAP gate
 - [x] better control gates
 - [x] BP diff blocks
 
