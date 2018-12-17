@@ -4,6 +4,8 @@ using CuYao
 using CuYao: tri2ij
 using LinearAlgebra
 using Yao.Intrinsics
+using Statistics: mean
+using CuArrays
 
 @testset "basics" begin
     a = randn(ComplexF64, 50, 20)
@@ -60,3 +62,55 @@ end
         @test all(select.(greg0 |> cpu, res |> Vector) .|> normalize! .≈ select.(greg1 |> cpu, res|>Vector))
     end
 end
+
+@testset "insert_qubit!" begin
+    reg = rand_state(5, 10)
+    res = insert_qubit!(reg |> cu, 3, nbit=2)
+    @test insert_qubit!(reg, 3, nbit=2) ≈ res
+
+    reg = rand_state(5, 10) |>focus!(2,3)
+    res = insert_qubit!(reg |> cu, 3, nbit=2)
+    @test insert_qubit!(reg, 3, nbit=2) ≈ res
+end
+
+@testset "cuda-op-measures" begin
+    reg = rand_state(8, 32) |> cu
+    op = repeat(5, X, 1:5)
+
+    # measure!
+    reg2 = reg |> copy
+    res = measure!(op, reg2, 2:6)
+    res2 = measure!(op, reg2, 2:6)
+    @test size(res) == (32,)
+    @test res2 == res
+
+    # measure_reset!
+    reg2 = reg |> copy
+    res = measure_reset!(op, reg2, 2:6)
+    reg2 |> repeat(8, H, 2:6)
+    res2 = measure_reset!(op, reg2, 2:6)
+    @test size(res) == (32,) == size(res2)
+    @test all(res2 .== 1)
+
+    # measure_remove!
+    reg2 = reg |> copy
+    res = measure_remove!(op, reg2, 2:6)
+    @test size(res) == (32,)
+
+    reg = repeat(register([1,-1]/sqrt(2.0)), 10) |> cu
+    @test measure!(X, reg) |> mean ≈ -1
+    reg = repeat(register([1.0,0]), 1000)
+    @test abs(measure!(X, reg) |> mean) < 0.1
+end
+
+@testset "cuda kron getindex" begin
+    a = randn(3,4)
+    b = randn(4,2)
+    ca, cb = cu(a), cu(b)
+    @test kron(ca, cb) |> Array ≈ kron(a, b)
+
+    v = randn(100) |> cu
+    inds = [3,5,2,1,7,1]
+    @test v[inds] ≈ v[inds |> CuVector]
+end
+

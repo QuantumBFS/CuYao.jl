@@ -109,3 +109,47 @@ function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
     @cuda threads=X blocks=Y kernel(regm, res, pl, val)
     res
 end
+
+for FUNC in [:measure!, :measure_reset!, :measure_remove!]
+    @eval function $FUNC(op::AbstractBlock, reg::GPUReg; kwargs...) where B
+        E, V = eigen!(mat(op) |> Matrix)
+        ei = Eigen(E|>cu, V|>cu)
+        $FUNC(ei, reg; kwargs...)
+    end
+end
+
+import Yao.Registers: insert_qubit!, join
+function batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2}
+    res = cuzeros(promote_type(T1,T2), size(A,1)*size(B, 1), size(A,2)*size(B,2), size(A, 3))
+    @inline function kernel(res, A, B)
+        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        inds = GPUArrays.gpu_ind2sub(res, state)
+        i_A = (inds[1]-1) ÷ size(B,1) + 1
+        j_A = (inds[2]-1) ÷ size(B,2) + 1
+        i_B = (inds[1]-1) % size(B,1) + 1
+        j_B = (inds[2]-1) % size(B,2) + 1
+        b = inds[3]
+        state <= length(res) && (@inbounds res[state] = A[i_A, j_A, b]*B[i_B, j_B, b])
+        return
+    end
+
+    X, Y = cudiv(length(res))
+    @cuda threads=X blocks=Y kernel(res, A, B)
+    res
+end
+
+function join(reg1::GPUReg{B}, reg2::GPUReg{B}) where {B}
+    s1 = reg1 |> rank3
+    s2 = reg2 |> rank3
+    state = batched_kron(s1, s2)
+    DefaultRegister{B}(reshape(state, size(state, 1), :))
+end
+
+function insert_qubit!(reg::GPUReg{B}, loc::Int; nbit::Int=1) where B
+    na = nactive(reg)
+    focus!(reg, 1:loc-1)
+    reg2 = join(zero_state(nbit, B) |> cu, reg) |> relax! |> focus!((1:na+nbit)...)
+    reg.state = reg2.state
+    reg
+end
+

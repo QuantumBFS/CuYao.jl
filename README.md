@@ -4,7 +4,7 @@ Yao.jl with CUDA native!
 
 Under progress! To start
 ```julia console
-]add Yao#Design4GPU
+]add Yao#master
 
 using Yao, CuYao
 cureg = rand_state(9, 1000) |> cu
@@ -23,12 +23,14 @@ Supported Gate List
 - [x] better T, S gate
 - [x] better control gates
 - [x] BP diff blocks
-- [x] statistic functional diff blocks
 
-Supported Operations
+Supported Register Operations
 - [x] measure!, measure_reset!, measure_remove!, select
 - [x] addbit!
-- [x] expect
+- [x] insert_qubit!
 - [x] focus!, relax!
-- [ ] join
+- [x] join
 - [ ] density_matrix
+
+- [x] statistic functional diff blocks
+- [x] expect for statistic functional
