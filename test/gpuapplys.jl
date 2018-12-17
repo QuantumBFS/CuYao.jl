@@ -1,4 +1,5 @@
 using Yao, Yao.Boost, Yao.Intrinsics, StaticArrays, Yao.Blocks, LinearAlgebra
+using Yao.Blocks: swapapply!
 using Test
 using CuYao
 using StatsBase: Weights
@@ -17,6 +18,17 @@ using StatsBase: Weights
         @test unapply!(vn |> cu, U1, (3,)) |> Matrix ≈ unapply!(vn |> copy, U1, (3,))
     end
     # sparse matrix like P0, P1 et. al. are not implemented.
+end
+
+@testset "gpu swapapply!" begin
+    nbit = 6
+    N = 1<<nbit
+    LOC1 = SVector{2}([0, 1])
+    v1 = randn(ComplexF32, N)
+    vn = randn(ComplexF32, N, 333)
+
+    @test swapapply!(v1 |> cu, 3,5) |> Vector ≈ swapapply!(v1 |> copy, 3,5)
+    @test swapapply!(vn |> cu, 3,5) |> Matrix ≈ swapapply!(vn |> copy, 3,5)
 end
 
 @testset "gpu u1apply!" begin

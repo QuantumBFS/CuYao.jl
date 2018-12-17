@@ -10,6 +10,7 @@ using LuxurySparse, StaticArrays, LinearAlgebra
 
 import Yao.Intrinsics: unrows!, u1apply!, _unapply!, swaprows!, cunapply!, autostatic
 import Yao.Boost: zapply!, xapply!, yapply!, cxapply!, cyapply!, czapply!, sapply!, sdagapply!, tapply!, tdagapply!
+import Yao.Blocks: swapapply!
 
 include("kernels.jl")
 
@@ -60,6 +61,30 @@ for G in [:x, :y, :z, :s, :t, :sdag, :tdag]
         state
     end
     @eval $CFUNC(state::CuVecOrMat, cbit::Int, cval::Int, ibit::Int) = invoke($CFUNC, Tuple{CuVecOrMat, Any, Any, Int}, state, cbit, cval, ibit)
+end
+
+function Yao.Blocks.swapapply!(state::CuVecOrMat, b1::Int, b2::Int)
+    mask1 = bmask(b1)
+    mask2 = bmask(b2)
+
+    X, Y = cudiv(size(state)...)
+    function kf(state, mask1, mask2)
+        inds = ((blockIdx().x-1) * blockDim().x + threadIdx().x,
+                       (blockIdx().y-1) * blockDim().y + threadIdx().y)
+        b = inds[1]-1
+        c = inds[2]
+        c <= size(state, 2) || return nothing
+        if b&mask1==0 && b&mask2==mask2
+            i = b+1
+            i_ = b ⊻ (mask1|mask2) + 1
+            temp = state[i, c]
+            state[i, c] = state[i_, c]
+            state[i_, c] = temp
+        end
+        nothing
+    end
+    @cuda threads=X blocks=Y kf(state, mask1, mask2)
+    state
 end
 
 #=
