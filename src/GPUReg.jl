@@ -145,6 +145,15 @@ function join(reg1::GPUReg{B}, reg2::GPUReg{B}) where {B}
     DefaultRegister{B}(reshape(state, size(state, 1), :))
 end
 
+export insert_qubit!
+function insert_qubit!(reg::DefaultRegister{B}, loc::Int; nbit::Int=1) where B
+    na = nactive(reg)
+    focus!(reg, 1:loc-1)
+    reg2 = join(zero_state(nbit, B), reg) |> relax! |> focus!((1:na+nbit)...)
+    reg.state = reg2.state
+    reg
+end
+
 function insert_qubit!(reg::GPUReg{B}, loc::Int; nbit::Int=1) where B
     na = nactive(reg)
     focus!(reg, 1:loc-1)

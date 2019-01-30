@@ -1,0 +1,56 @@
+variables:
+  CI_IMAGE_TAG: 'cuda'
+
+include:
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/common.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_v1.0.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_v1.1.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_dev.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/coverage_v1.1.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/documentation_v1.1.yml'
+
+test:v1.0:
+  only:
+    - master
+    - staging
+    - trying
+
+test:v1.1:
+  only:
+    - master
+    - staging
+    - trying
+
+test:dev:
+  allow_failure: true
+  only:
+    - master
+    - staging
+    - trying
+
+coverage:
+  only:
+    - master
+    - staging
+    - trying
+
+documentation:
+  only:
+    - master
+    - staging
+    - trying
+
+cuyao:
+  stage: test
+  image: "juliagpu/julia:v1.1-cuda"
+  script:
+    - mkdir $JULIA_DEPOT_PATH # Pkg.jl#325
+    - julia -e 'using Pkg;
+                Pkg.develop(PackageSpec(path=pwd()));
+                Pkg.build();
+                Pkg.test("CuYao");'
+  allow_failure: true
+  only:
+    - master
+    - staging
+    - trying

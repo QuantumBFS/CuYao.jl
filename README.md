@@ -1,5 +1,8 @@
 # CuYao.jl
 
+ae89bc4c-aaa8-4a52-bb3e-7b06eb2be04c
+[![codecov](https://codecov.io/gh/QuantumBFS/CuYao.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/QuantumBFS/CuYao.jl)
+
 GPU support to [Yao.jl](https://github.com/QuantumBFS/Yao.jl).
 
 We are in an early-release beta. Expect some adventures and rough edges.
