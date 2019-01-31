@@ -1,6 +1,5 @@
 # CuYao.jl
 
-ae89bc4c-aaa8-4a52-bb3e-7b06eb2be04c
 [![codecov](https://codecov.io/gh/QuantumBFS/CuYao.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/QuantumBFS/CuYao.jl)
 
 GPU support to [Yao.jl](https://github.com/QuantumBFS/Yao.jl).
@@ -30,7 +29,7 @@ measure!(cureg |> addbit(1) |> focus!(4,1,3)) |> relax!
 ```
 
 ## Features
-A list of supported register operations
+A List of Supported Gates
 - [x] general U(N) gate
 - [x] general U(1) gate
 - [x] better X, Y, Z gate
@@ -47,6 +46,7 @@ Supported Register Operations
 - [x] join
 - [x] density_matrix
 
+Other Operations
 - [x] statistic functional diff blocks
 - [x] expect for statistic functional
 
