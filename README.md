@@ -17,7 +17,7 @@ pkg> add CuYao
 
 
 ## Documentation
-It provides only two new APIs, `reg |> cu` to upload a quantum register to GPU, and `cureg |> cpu` to download a quantum register to CPU.
+`CuYao.jl` provides only two new APIs, `reg |> cu` to upload a register to GPU, and `cureg |> cpu` to download a register to CPU.
 
 To start, see the following example
 ```julia
