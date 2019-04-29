@@ -43,7 +43,7 @@ end
 kernel(blk::Union{QDiff, CachedBlock}) = (state, inds) -> nothing
 
 #################### KernelCompiled Block #################
-import Yao.Blocks: istraitkeeper, chblock, usedbits, apply!, mat, print_block, adjoint, parent
+import YaoBlocks: istraitkeeper, chcontent, occupied_locs, apply!, mat, print_block, content
 """
     KernelCompiled{GT, N, T} <: TagBlock{N, T}
     KernelCompiled(block) -> KernelCompiled
@@ -54,7 +54,7 @@ struct KernelCompiled{GT, N, T} <: TagBlock{N, T}
     block::GT
     KernelCompiled(block::MatrixBlock{N, T}) where {N, T} = new{typeof(block), N, T}(block)
 end
-kernel(kc::KernelCompiled) = kernel(parent(kc))
+kernel(kc::KernelCompiled) = kernel(content(kc))
 function apply!(reg::GPUReg, kc::KernelCompiled)
     kf = kernel(kc)
     X, Y = cudiv(size(reg.state)...)
@@ -63,14 +63,14 @@ function apply!(reg::GPUReg, kc::KernelCompiled)
 end
 
 istraitkeeper(::KernelCompiled) = Val(true)
-parent(df::KernelCompiled) = df.block
-chblock(kc::KernelCompiled, blk::MatrixBlock) = KernelCompiled(blk)
+content(df::KernelCompiled) = df.block
+chcontent(kc::KernelCompiled, blk::MatrixBlock) = KernelCompiled(blk)
 
-adjoint(df::KernelCompiled) = KernelCompiled(parent(df)')
-mat(df::KernelCompiled) = mat(parent(df))
-usedbits(df::KernelCompiled) = usedbits(parent(df))
+Base.adjoint(df::KernelCompiled) = KernelCompiled(content(df)')
+mat(df::KernelCompiled) = mat(content(df))
+occupied_locs(df::KernelCompiled) = occupied_locs(content(df))
 
 function print_block(io::IO, df::KernelCompiled)
     printstyled(io, "[G] "; bold=true, color=:yellow)
-    #print(io, parent(df))
+    #print(io, content(df))
 end

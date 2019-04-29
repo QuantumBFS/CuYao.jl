@@ -1,38 +1,38 @@
-import Yao.Intrinsics: unrows!, u1apply!, _unapply!, swaprows!, cunapply!, autostatic
-import Yao.Boost: zapply!, xapply!, yapply!, cxapply!, cyapply!, czapply!, sapply!, sdagapply!, tapply!, tdagapply!
-import Yao.Blocks: swapapply!
+import YaoArrayRegister: u1rows!, unrows!, autostatic, instruct!, swaprows!
 
 include("kernels.jl")
 
-autostatic(A::AbstractVecOrMat) = A |> staticize
+gpu_compatible(A::AbstractVecOrMat) = A |> staticize
+gpu_compatible(A::StaticArray) = A
 
 ###################### unapply! ############################
-function cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::AbstractMatrix, locs::NTuple{M, Int}) where {C, M}
+function instruct!(state::CuVecOrMat, U0::AbstractMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M}
+    U0 = gpu_compatible(U0)
     # reorder a unirary matrix.
-    kf = un_kernel(nactive(state), cbits, cvals, U0, locs)
+    kf = un_kernel(log2dim1(state), clocs, cvals, U0, locs)
 
     X, Y = cudiv(size(state)...)
     @cuda threads=X blocks=Y simple_kernel(kf, state)
     state
 end
-cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::IMatrix, locs::NTuple{M, Int}) where {C, M} = state
-cunapply!(state::CuVecOrMat, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}) where {C, M} = cunapply!(state, cbits, cvals, U0 |> Matrix, locs)
+instruct!(state::CuVecOrMat, U0::IMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = state
+instruct!(state::CuVecOrMat, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = instruct!(state, U0 |> Matrix, locs, clocs, cvals)
 
 ################## General U1 apply! ###################
 for MT in [:SDDiagonal, :SDPermMatrix, :AbstractMatrix, :IMatrix, :SDSparseMatrixCSC]
-@eval function u1apply!(state::CuVecOrMat, U1::$MT, ibit::Int)
-    kf = u1_kernel(U1, ibit::Int)
-    X, Y = cudiv(size(state)...)
-    @cuda threads=X blocks=Y simple_kernel(kf, state)
-    state
-end
+    @eval function instruct!(state::CuVecOrMat, U1::$MT, ibit::Tuple{Int})
+        kf = u1_kernel(U1, ibit...)
+        X, Y = cudiv(size(state)...)
+        @cuda threads=X blocks=Y simple_kernel(kf, state)
+        state
+    end
 end
 
 ################## XYZ #############
-for G in [:x, :y, :z, :s, :t, :sdag, :tdag]
-    KERNEL = Symbol(G, :_kernel)
-    FUNC = Symbol(G, :apply!)
-    @eval function $FUNC(state::CuVecOrMat, bits::Ints{Int})
+using Yao.ConstGate: S, T, Sdag, Tdag
+for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
+    KERNEL = Symbol(G |> string |> lowercase, :_kernel)
+    @eval function instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, bits::NTuple{<:Any,Int})
         length(bits) == 0 && return state
 
         kf = $KERNEL(bits)
@@ -40,20 +40,20 @@ for G in [:x, :y, :z, :s, :t, :sdag, :tdag]
         @cuda threads=X blocks=Y simple_kernel(kf, state)
         state
     end
-    @eval $FUNC(state::CuVecOrMat, bit::Int) = invoke($FUNC, Tuple{CuVecOrMat, Ints{Int}}, state, bit)
 
-    CFUNC = Symbol(:c, FUNC)
     CKERNEL = Symbol(:c, KERNEL)
-    @eval function $CFUNC(state::CuVecOrMat, cbits, cvals, bits::Int)
-        kf = $CKERNEL(cbits, cvals, bits)
+    @eval function instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+        kf = $CKERNEL(clocs, cvals, loc...)
         X, Y = cudiv(size(state)...)
         @cuda threads=X blocks=Y simple_kernel(kf, state)
         state
     end
-    @eval $CFUNC(state::CuVecOrMat, cbit::Int, cval::Int, ibit::Int) = invoke($CFUNC, Tuple{CuVecOrMat, Any, Any, Int}, state, cbit, cval, ibit)
+    @eval instruct!(state::CuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int}) = invoke(instruct!, Tuple{CuVecOrMat, Val{$(QuoteNode(G))}, Tuple{Int}, NTuple{C, Int}, NTuple{C, Int}} where C, state, vg, loc, cloc, cval)
+    @eval instruct!(state::CuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}) = invoke(instruct!, Tuple{CuVecOrMat, Val{$(QuoteNode(G))}, NTuple{<:Any, Int}} where C, state, vg, loc)
 end
 
-function Yao.Blocks.swapapply!(state::CuVecOrMat, b1::Int, b2::Int)
+function instruct!(state::CuVecOrMat, ::Val{:SWAP}, locs::Tuple{Int,Int})
+    b1, b2 = locs
     mask1 = bmask(b1)
     mask2 = bmask(b2)
 

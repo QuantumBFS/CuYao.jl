@@ -1,14 +1,23 @@
 module CuYao
 using LuxurySparse, StaticArrays, LinearAlgebra, Base.Cartesian
 using StatsBase
+using BitBasis
+using Reexport
+import TupleTools
 
-using Yao, Yao.Blocks, Yao.Intrinsics, Yao.Boost
-using Yao.Intrinsics: autostatic, staticize
+using YaoArrayRegister
 using GPUArrays, CuArrays, CUDAnative
-CuArrays.allowscalar(false)
+@reexport using Yao
+
+const Ints = NTuple{<:Any, Int}
 
 include("CUDApatch.jl")
 include("GPUReg.jl")
 include("gpuapplys.jl")
-include("gcompile.jl")
+#include("gcompile.jl")
+
+function __init__()
+    CuArrays.allowscalar(false)
+end
+
 end
