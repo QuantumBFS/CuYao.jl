@@ -21,11 +21,12 @@ pkg> add CuYao
 
 To start, see the following example
 ```julia
-using Yao, CuYao
+using CuYao
 
-cureg = rand_state(9, 1000) |> cu 
+cureg = rand_state(9; nbatch=1000) |> cu 
 cureg |> put(9, 2=>Z)
-measure!(cureg |> addbit(1) |> focus!(4,1,3)) |> relax!
+measure!(cureg |> addbits!(1) |> focus!(4,1,3))
+cureg |> relax!(4,1,3) |> cpu
 ```
 
 ## Features
