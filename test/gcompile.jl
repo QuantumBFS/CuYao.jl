@@ -1,4 +1,4 @@
-using Yao, Yao.Boost, Yao.Intrinsics, StaticArrays, Yao.Blocks
+using StaticArrays
 using Test
 using CuYao
 

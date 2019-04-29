@@ -1,15 +1,8 @@
-import GPUArrays: fast_isapprox, to_index
-to_index(a::A, x::Array{ET}) where {A, ET} = copyto!(similar(a, ET, size(x)...), x)
-
-Base.isapprox(A::GPUArray{T1}, B::GPUArray{T2}, rtol::Real = Base.rtoldefault(T1, T2, 0), atol::Real=0) where {T1, T2} = all(fast_isapprox.(A, B, T1(rtol)|>real, T1(atol)|>real))
-Base.isapprox(A::AbstractArray{T1}, B::GPUArray{T2}, rtol::Real = Base.rtoldefault(T1, T2, 0), atol::Real=0) where {T1, T2} = all(fast_isapprox.(A, Array(B), T1(rtol)|>real, T1(atol)|>real))
-Base.isapprox(A::GPUArray{T1}, B::AbstractArray{T2}, rtol::Real = Base.rtoldefault(T1, T2, 0), atol::Real=0) where {T1, T2} = all(fast_isapprox.(Array(A), B, T1(rtol)|>real, T1(atol)|>real))
-
-import CuArrays: _cuview, ViewIndex, NonContiguous
-using GPUArrays: genperm
+#import CuArrays: _cuview, ViewIndex, NonContiguous
+#using GPUArrays: genperm
 # fallback to SubArray when the view is not contiguous
-_cuview(A, I::Tuple, ::NonContiguous) = invoke(view, Tuple{AbstractArray, typeof(I).parameters...}, A, I...)
 
+#=
 function LinearAlgebra.permutedims!(dest::GPUArray, src::GPUArray, perm) where N
     perm isa Tuple || (perm = Tuple(perm))
     gpu_call(dest, (dest, src, perm)) do state, dest, src, perm
@@ -19,15 +12,49 @@ function LinearAlgebra.permutedims!(dest::GPUArray, src::GPUArray, perm) where N
     end
     return dest
 end
+=#
+
+import CUDAnative: pow, abs, angle
+for (RT, CT) in [(:Float64, :ComplexF64), (:Float32, :ComplexF32)]
+    @eval CUDAnative.angle(z::$CT) = CUDAnative.atan2(CUDAnative.imag(z), CUDAnative.real(z))
+    @eval function CUDAnative.abs(z::$CT)
+        i = CUDAnative.imag(z)
+        r = CUDAnative.real(z)
+        CUDAnative.sqrt(i*i+r*r)
+    end
+
+    @eval cp2c(d::$RT, a::$RT) = CUDAnative.ComplexF64(d*CUDAnative.cos(a), d*CUDAnative.sin(a))
+    for NT in [RT, :Int32]
+        @eval CUDAnative.pow(z::$CT, n::$NT) = CUDAnative.ComplexF64((CUDAnative.pow(CUDAnative.abs(z), n)*CUDAnative.cos(n*CUDAnative.angle(z))), (CUDAnative.pow(CUDAnative.abs(z), n)*CUDAnative.sin(n*CUDAnative.angle(z))))
+    end
+end
+
+@inline function bit_count(x::UInt32)
+    x = ((x >> 1) & 0b01010101010101010101010101010101) + (x & 0b01010101010101010101010101010101)
+    x = ((x >> 2) & 0b00110011001100110011001100110011) + (x & 0b00110011001100110011001100110011)
+    x = ((x >> 4) & 0b00001111000011110000111100001111) + (x & 0b00001111000011110000111100001111)
+    x = ((x >> 8) & 0b00000000111111110000000011111111) + (x & 0b00000000111111110000000011111111)
+    x = ((x >> 16)& 0b00000000000000001111111111111111) + (x & 0b00000000000000001111111111111111)
+    return x
+end
+
+@inline function bit_count(x::Int32)
+    x = ((x >> 1) & Int32(0b01010101010101010101010101010101)) + (x & Int32(0b01010101010101010101010101010101))
+    x = ((x >> 2) & Int32(0b00110011001100110011001100110011)) + (x & Int32(0b00110011001100110011001100110011))
+    x = ((x >> 4) & Int32(0b00001111000011110000111100001111)) + (x & Int32(0b00001111000011110000111100001111))
+    x = ((x >> 8) & Int32(0b00000000111111110000000011111111)) + (x & Int32(0b00000000111111110000000011111111))
+    x = ((x >> 16)& Int32(0b00000000000000001111111111111111)) + (x & Int32(0b00000000000000001111111111111111))
+    return x
+end
+
+bit_count(UInt32(0b11111))
 
 # TODO
 # support norm(view(reshape(A, m, n), :, 1))
-# support view(A, :, 1, :)[:,1]
-# k,i,j = GPUArrays.gpu_ind2sub(regm, state), @cuprinf don't work
 using LinearAlgebra
 import LinearAlgebra: norm
 const CuSubArr{T, N} = Union{CuArray{T, N}, SubArray{T, N, <:CuArray}}
-norm2(A::CuSubArr; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> sqrt
+norm2(A::CuSubArr; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> CUDAnative.sqrt
 
 export piecewise, cudiv
 @inline function cudiv(x::Int)

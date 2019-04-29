@@ -1,5 +1,5 @@
 @inline function un_kernel(nbit::Int, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::AbstractMatrix, locs::NTuple{M, Int}) where {C, M}
-    U = (all(diff(locs).>0) ? U0 : reorder(U0, collect(locs)|>sortperm)) |> staticize
+    U = (all(TupleTools.diff(locs).>0) ? U0 : reorder(U0, collect(locs)|>sortperm)) |> staticize
     MM = size(U0, 1)
     locked_bits = (cbits..., locs...)
     locked_vals = (cvals..., zeros(Int, M)...)
@@ -50,12 +50,13 @@ end
     mask = bmask(ibit)
     @inline function kernel(state, inds)
         i = inds[1]
-        piecewise(state, inds)[i] *= testany(i-1, mask) ? d : a
+        piecewise(state, inds)[i] *= anyone(i-1, mask) ? d : a
     end
 end
 
 ################ Specific kernels ##################
 x_kernel(bits::Ints) = cx_kernel((), (), bits::Ints)
+cx_kernel(cbits, cvals, loc::Int) = cx_kernel(cbits, cvals, (loc,))
 @inline function cx_kernel(cbits, cvals, bits::Ints)
     ctrl = controller((cbits..., bits[1]), (cvals..., 0))
     mask = bmask(bits...)
@@ -94,12 +95,12 @@ end
     end
 end
 
-@inline function zlike_kernel(bits::Ints, d)
-    mask = bmask(bits...)
+@inline function zlike_kernel(bits::Ints, d::Union{ComplexF32, ComplexF64, Float64, Float32})
+    mask = bmask(Int32, bits...)
     @inline function kernel(state, inds)
         i = inds[1]
-        piecewise(state, inds)[i] *= d ^ count_ones((i-1)&mask)
-        #piecewise(state, inds)[i] *= CUDAnative.pow(d, count_ones((i-1)&mask))
+        piecewise(state, inds)[i] *= CUDAnative.pow(d, bit_count(Int32(i-1)&mask))
+        return
     end
 end
 
@@ -121,14 +122,15 @@ end
         ctrl(b) && swaprows!(piecewise(state, inds), i, flip(b, mask) + 1, im, -im)
     end
 end
-for (G, FACTOR) in zip([:z, :s, :t, :sdag, :tdag], [:(-1), :(im), :($(exp(im*π/4))), :(-im), :($(exp(-im*π/4)))])
+
+for (G, FACTOR) in zip([:z, :s, :t, :sdag, :tdag], [:(-one(Int32)), :(1f0im), :($(exp(im*π/4))), :(-1f0im), :($(exp(-im*π/4)))])
     KERNEL = Symbol(G, :_kernel)
     CKERNEL = Symbol(:c, KERNEL)
     if G != :z
         @eval $KERNEL(bits::Ints) = zlike_kernel(bits, $FACTOR)
     end
-    @eval $KERNEL(bit::Int) = u1diag_kernel(bit, 1, $FACTOR)
-    @eval $CKERNEL(cbits, cvals, ibit::Int) = cdg_kernel(cbits, cvals, ibit, 1, $FACTOR)
+    @eval $KERNEL(bit::Int) = u1diag_kernel(bit, one($FACTOR), $FACTOR)
+    @eval $CKERNEL(cbits, cvals, ibit::Int) = cdg_kernel(cbits, cvals, ibit, one($FACTOR), $FACTOR)
 end
 
 """

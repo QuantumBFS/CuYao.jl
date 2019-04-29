@@ -1,13 +1,13 @@
 import CuArrays: cu
-import Yao.Registers: _measure, measure, measure!, measure_reset!, measure_remove!
-import Yao.Intrinsics: batch_normalize!
+import YaoArrayRegister: _measure, measure, measure!, measure_collapseto!, measure_remove!
+import YaoBase: batch_normalize!
 import Yao: expect
 
 export cpu, cu, GPUReg
 
-cu(reg::DefaultRegister{B}) where B = DefaultRegister{B}(cu(reg.state))
-cpu(reg::DefaultRegister{B}) where B = DefaultRegister{B}(collect(reg.state))
-const GPUReg{B, T, MT} = DefaultRegister{B, T, MT} where MT<:GPUArray
+cu(reg::ArrayReg{B}) where B = ArrayReg{B}(cu(reg.state))
+cpu(reg::ArrayReg{B}) where B = ArrayReg{B}(collect(reg.state))
+const GPUReg{B, T, MT} = ArrayReg{B, T, MT} where MT<:GPUArray
 
 function batch_normalize!(s::CuSubArr, p::Real=2)
     p!=2 && throw(ArgumentError("p must be 2!"))
@@ -21,29 +21,16 @@ end
     i+1,j
 end
 
-function expect(stat::StatFunctional{2, <:Function}, xs::CuVector{T}) where T
-    N = length(xs)
-    s = reduce(+, stat.data.(xs', xs))
-    d = mapreduce(xi->stat.data(xi, xi), +, xs)
-    (s-d)/(N*(N-1))
-end
-
-function expect(stat::StatFunctional{2, <:Function}, xs::CuVector, ys::CuVector)
-    M = length(xs)
-    N = length(ys)
-    reduce(+, stat.data.(xs', ys))/M/N
-end
-
 ############### MEASURE ##################
-measure(reg::GPUReg{1}; nshot::Int=1) = _measure(reg |> probs |> Vector, nshot)
+measure(::ComputationalBasis, reg::GPUReg{1}, ::AllLocs; nshots::Int=1) = _measure(reg |> probs |> Vector, nshots)
 # TODO: optimize the batch dimension using parallel sampling
-function measure(reg::GPUReg{B}; nshot::Int=1) where B
+function measure(::ComputationalBasis, reg::GPUReg{B}, ::AllLocs; nshots::Int=1) where B
     regm = reg |> rank3
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
-    _measure(pl |> Matrix, nshot)
+    _measure(pl |> Matrix, nshots)
 end
 
-function measure_remove!(reg::GPUReg{B}) where B
+function measure_remove!(::ComputationalBasis, reg::GPUReg{B}, ::AllLocs) where B
     regm = reg |> rank3
     nregm = similar(regm, 1<<nremain(reg), B)
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
@@ -64,7 +51,7 @@ function measure_remove!(reg::GPUReg{B}) where B
     res
 end
 
-function measure!(reg::GPUReg{B, T}) where {B, T}
+function measure!(::ComputationalBasis, reg::GPUReg{B, T}, ::AllLocs) where {B, T}
     regm = reg |> rank3
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
@@ -86,7 +73,7 @@ function measure!(reg::GPUReg{B, T}) where {B, T}
     res
 end
 
-function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
+function measure_collapseto!(::ComputationalBasis, reg::GPUReg{B, T}, ::AllLocs; config=0) where {B, T}
     regm = reg |> rank3
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
@@ -106,19 +93,11 @@ function measure_reset!(reg::GPUReg{B, T}; val=0) where {B, T}
     end
 
     X, Y = cudiv(length(regm))
-    @cuda threads=X blocks=Y kernel(regm, res, pl, val)
+    @cuda threads=X blocks=Y kernel(regm, res, pl, config)
     res
 end
 
-for FUNC in [:measure!, :measure_reset!, :measure_remove!]
-    @eval function $FUNC(op::AbstractBlock, reg::GPUReg; kwargs...) where B
-        E, V = eigen!(mat(op) |> Matrix)
-        ei = Eigen(E|>cu, V|>cu)
-        $FUNC(ei, reg; kwargs...)
-    end
-end
-
-import Yao.Registers: insert_qubit!, join
+import YaoArrayRegister: insert_qubits!, join
 function batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2}
     res = cuzeros(promote_type(T1,T2), size(A,1)*size(B, 1), size(A,2)*size(B,2), size(A, 3))
     @inline function kernel(res, A, B)
@@ -142,23 +121,22 @@ function join(reg1::GPUReg{B}, reg2::GPUReg{B}) where {B}
     s1 = reg1 |> rank3
     s2 = reg2 |> rank3
     state = batched_kron(s1, s2)
-    DefaultRegister{B}(reshape(state, size(state, 1), :))
+    ArrayReg{B}(reshape(state, size(state, 1), :))
 end
 
-export insert_qubit!
-function insert_qubit!(reg::DefaultRegister{B}, loc::Int; nbit::Int=1) where B
+export insert_qubits!
+function insert_qubits!(reg::GPUReg{B}, loc::Int; nqubits::Int=1) where B
     na = nactive(reg)
     focus!(reg, 1:loc-1)
-    reg2 = join(zero_state(nbit, B), reg) |> relax! |> focus!((1:na+nbit)...)
+    reg2 = join(zero_state(nqubits; nbatch=B) |> cu, reg) |> relax! |> focus!((1:na+nqubits)...)
     reg.state = reg2.state
     reg
 end
 
-function insert_qubit!(reg::GPUReg{B}, loc::Int; nbit::Int=1) where B
-    na = nactive(reg)
-    focus!(reg, 1:loc-1)
-    reg2 = join(zero_state(nbit, B) |> cu, reg) |> relax! |> focus!((1:na+nbit)...)
-    reg.state = reg2.state
-    reg
+for FUNC in [:measure!, :measure_collapseto!, :measure_remove!]
+    @eval function $FUNC(op::AbstractBlock, reg::GPUReg, al::AllLocs; kwargs...) where B
+        E, V = eigen!(mat(op) |> Matrix)
+        ei = Eigen(E|>cu, V|>cu)
+        $FUNC(ei, reg, al; kwargs...)
+    end
 end
-
