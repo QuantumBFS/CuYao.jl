@@ -5,13 +5,11 @@ using LinearAlgebra
 using BitBasis
 using Statistics: mean
 using StaticArrays
-using QuAlgorithmZoo
 using CuArrays
 
 @testset "basics" begin
     a = randn(ComplexF64, 50, 20)
     ca = a|>cu
-    @show ca |> typeof
     batch_normalize!(ca)
     batch_normalize!(a)
     @test ca |> Matrix ≈ a
@@ -55,6 +53,9 @@ end
         res = measure!(greg1)
         @test all(select.(greg0 |> cpu, res |> Vector) .|> normalize! .≈ select.(greg1 |> cpu, res|>Vector))
     end
+
+    @test join(rand_state(3) |> cu, rand_state(3) |> cu) |> nactive == 6
+    @test join(rand_state(3, nbatch=10) |> cu, rand_state(3, nbatch=10) |> cu) |> nactive == 6
 end
 
 @testset "insert_qubits!" begin
