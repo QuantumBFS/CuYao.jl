@@ -69,6 +69,28 @@ cx_kernel(cbits, cvals, loc::Int) = cx_kernel(cbits, cvals, (loc,))
     end
 end
 
+@inline function pswap_kernel(m::Int, n::Int, theta::Real)
+    mask1 = bmask(m)
+    mask2 = bmask(n)
+    mask12 = mask1|mask2
+    a, c, b_, d = mat(Rx(theta))
+    e = exp(-im/2*theta)
+    @inline function kernel(state, inds)
+        i = inds[1]
+        b = i - 1
+        if b&mask1==0
+            i_ = b ⊻ mask12 + 1
+            if b&mask2==mask2
+                u1rows!(piecewise(state, inds), i, i_, a, b_, c, d)
+            else
+                @inbounds state[i,inds[2]] *= e
+                @inbounds state[i_,inds[2]] *= e
+            end
+        end
+        return
+    end
+end
+
 @inline function y_kernel(bits::Ints)
     mask = bmask(Int, bits...)
     ctrl = controller(bits[1], 0)
