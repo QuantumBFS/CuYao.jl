@@ -81,9 +81,9 @@ end
 # parametrized swap gate
 using Yao.ConstGate: SWAPGate
 
-function Yao.apply!(reg::GPUReg, pb::PutBlock{N,2,RotationGate{2,T,G}}) where {N,T,G<:SWAPGate}
-    kf = pswap_kernel(pb.locs..., pb.content.theta)
+function instruct!(state::CuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::Real)
+    kf = pswap_kernel(locs..., θ)
     X, Y = cudiv(size(reg.state)...)
-    @cuda threads=X blocks=Y simple_kernel(kf, reg.state)
-    reg
+    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    state
 end
