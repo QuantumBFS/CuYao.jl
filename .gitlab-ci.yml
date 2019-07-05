@@ -31,26 +31,7 @@ test:dev:
 coverage:
   only:
     - master
-    - staging
-    - trying
 
 documentation:
   only:
     - master
-    - staging
-    - trying
-
-cuyao:
-  stage: test
-  image: "juliagpu/julia:v1.1-cuda"
-  script:
-    - mkdir $JULIA_DEPOT_PATH # Pkg.jl#325
-    - julia -e 'using Pkg;
-                Pkg.develop(PackageSpec(path=pwd()));
-                Pkg.build();
-                Pkg.test("CuYao");'
-  allow_failure: true
-  only:
-    - master
-    - staging
-    - trying
