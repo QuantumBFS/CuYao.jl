@@ -1,6 +1,5 @@
 name = "CuYao"
 uuid = "b48ca7a8-dd42-11e8-2b8e-1b7706800275"
-authors = ["Leo <cacate0129@gmail.com>"]
 version = "0.1.0"
 
 [deps]
@@ -17,3 +16,9 @@ TupleTools = "9d95972d-f1c8-5527-a6e0-b4b365fa01f6"
 Yao = "5872b779-8223-5990-8dd0-5abbb0748c8c"
 YaoArrayRegister = "e600142f-9330-5003-8abb-0ebd767abc51"
 YaoBase = "a8f54c17-34bc-5a9d-b050-f522fe3f755f"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
