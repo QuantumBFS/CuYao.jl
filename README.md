@@ -11,7 +11,6 @@ We are in an early-release beta. Expect some adventures and rough edges.
 In **v1.0+**, please type `]` in the REPL to use the package mode, then type:
 
 ```julia
-pkg> add Yao
 pkg> add CuYao
 ```
 
