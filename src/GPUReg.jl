@@ -99,7 +99,7 @@ end
 
 import YaoArrayRegister: insert_qubits!, join
 function batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2}
-    res = CuArrays.zeros(promote_type(T1,T2), size(A,1)*size(B, 1), size(A,2)*size(B,2), size(A, 3))
+    res = CuArrays.cuzeros(promote_type(T1,T2), size(A,1)*size(B, 1), size(A,2)*size(B,2), size(A, 3))
     @inline function kernel(res, A, B)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
         i,j,b = GPUArrays.gpu_ind2sub(res, state)
