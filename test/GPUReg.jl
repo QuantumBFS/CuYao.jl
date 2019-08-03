@@ -6,6 +6,7 @@ using BitBasis
 using Statistics: mean
 using StaticArrays
 using CuArrays
+CuArrays.allowscalar(false)
 
 @testset "basics" begin
     a = randn(ComplexF64, 50, 20)
