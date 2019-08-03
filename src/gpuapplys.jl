@@ -83,7 +83,7 @@ using Yao.ConstGate: SWAPGate
 
 function instruct!(state::CuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::Real)
     kf = pswap_kernel(locs..., θ)
-    X, Y = cudiv(size(reg.state)...)
+    X, Y = cudiv(size(state)...)
     @cuda threads=X blocks=Y simple_kernel(kf, state)
     state
 end
