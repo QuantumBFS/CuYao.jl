@@ -31,7 +31,7 @@ end
         @test size(measure!(greg |> copy)) == size(measure!(reg |> copy))
         @test size(measure_collapseto!(greg |> copy)) == size(measure_collapseto!(reg |> copy))
         @test size(measure_remove!(greg |> copy)) == size(measure_remove!(reg |> copy))
-        @test select(greg |> copy, 12) ≈ select(reg, 12)
+        @test select(greg |> copy, BitStr{10}(12)) ≈ select(reg, BitStr{10}(12))
         @test size(measure!(greg |> copy |> focus!(3,4,1))) == size(measure!(reg |> copy |> focus!(3,4,1)))
         @test greg |> copy |> focus!(3,4,1) |> relax!(3,4,1) |> cpu ≈ reg
 
@@ -47,7 +47,7 @@ end
         res = measure_collapseto!(greg1; config=3)
         @test all(measure(greg1, nshots=10) .== 3)
         @test greg1 |> isnormalized
-        @test all(select.(greg0 |> cpu, res |> Vector) .|> normalize! .≈ select.(greg1 |> cpu, 3))
+        @test all(select.(greg0 |> cpu, res |> Vector) .|> normalize! .≈ select.(greg1 |> cpu, BitStr{10}(3)))
 
         greg1 = greg |> copy |> focus!(1,4,3)
         greg0 = copy(greg1)
@@ -82,7 +82,7 @@ end
 
     # measure_collapseto!
     reg2 = reg |> copy
-    res = measure_collapseto!(op, reg2, 2:6)
+    res = measure_collapseto!(op, reg2, 2:6; config=0)
     reg2 |> repeat(8, H, 2:6)
     res2 = measure_collapseto!(op, reg2, 2:6)
     @test size(res) == (32,) == size(res2)

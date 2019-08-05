@@ -14,6 +14,15 @@ function LinearAlgebra.permutedims!(dest::GPUArray, src::GPUArray, perm) where N
 end
 =#
 
+function CuArrays.buffer(xs::CuArray, index::Integer=1)
+  extra_offset = (Base.to_index(index)-1) * Base.elsize(xs)
+  view(xs.buf, xs.offset + extra_offset)
+end
+
+function CuArrays.CuArray{T,N}(buf::CuArrays.Mem.Buffer, dims::NTuple{N,BitStr{M}}; offset::Integer=0, own::Bool=true) where {T,N,M}
+    CuArray{T,N}(buf, map(Int64, dims); offset=offset, own=own)
+end
+
 import CUDAnative: pow, abs, angle
 for (RT, CT) in [(:Float64, :ComplexF64), (:Float32, :ComplexF32)]
     @eval CUDAnative.angle(z::$CT) = CUDAnative.atan2(CUDAnative.imag(z), CUDAnative.real(z))
@@ -96,7 +105,7 @@ function getindex(A::CuVector{T}, B::CuArray{<:Integer}) where T
     res = CuArrays.cuzeros(T, size(B)...)
     @inline function kernel(res, A, B)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        state <= length(res) && (@inbounds res[state] = A[B[state]])
+        state <= length(res) && (@inbounds res[state] = A[Base.to_index(B[state])])
         return
     end
 

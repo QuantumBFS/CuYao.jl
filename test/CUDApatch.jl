@@ -1,7 +1,8 @@
-using CuYao
+using CuYao, BitBasis
 using CuArrays, GPUArrays
 using Test
 using CUDAnative
+CuArrays.allowscalar(false)
 
 @testset "isapprox-complex" begin
     ca = CuArray(randn(ComplexF64,3,3))
@@ -28,4 +29,15 @@ end
         @test Array(CUDAnative.pow.(a, Int32(3))) ≈ Array(a).^3
         @test Array(CUDAnative.pow.(a, real(T)(3))) ≈ Array(a).^3
     end
+end
+
+CuArrays.allowscalar(true)
+@testset "bitstr getindex" begin
+    a = CuArray([1,2,3,4,5])
+    @test a[BitStr{5}(2)] == 3
+    @test a[BitStr{5}(2):BitStr{5}(3)] == CuArray([3,4])
+    @test a[CuArray([BitStr{5}(2),BitStr{5}(3)])] == CuArray([3,4])
+    @test view(a,BitStr{5}(2))[] == 3
+    @test view(a,BitStr{5}(2):BitStr{5}(3)) == CuArray([3,4])
+    @test view(a,CuArray([BitStr{5}(2),BitStr{5}(3)])) == CuArray([3,4])
 end
