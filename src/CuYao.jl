@@ -5,9 +5,11 @@ using BitBasis
 using Reexport
 import TupleTools
 using Random
+using SparseArrays
 
 using YaoArrayRegister
 using GPUArrays, CuArrays, CUDAnative
+using CuArrays.CUSPARSE
 @reexport using Yao
 
 const Ints = NTuple{<:Any, Int}
@@ -15,6 +17,7 @@ const Ints = NTuple{<:Any, Int}
 include("CUDApatch.jl")
 include("GPUReg.jl")
 include("gpuapplys.jl")
+include("cumat.jl")
 #include("gcompile.jl")
 
 function __init__()

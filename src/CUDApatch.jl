@@ -113,3 +113,17 @@ function getindex(A::CuVector{T}, B::CuArray{<:Integer}) where T
     @cuda threads=X blocks=Y kernel(res, A, B)
     res
 end
+
+load_mat_tocuda(m::AbstractMatrix) = m = CuSparseMatrixCSC(SparseMatrixCSC(m))
+load_mat_tocuda(m::SparseMatrixCSC) = m = CuSparseMatrixCSC(m)
+load_mat_tocuda(m::Matrix) = m = CuMatrix(m)
+
+function SparseArrays.SparseMatrixCSC(A::CuSparseMatrixCSC)
+    SparseMatrixCSC(A.dims..., Vector(A.colPtr), Vector(A.rowVal), Vector(A.nzVal))
+end
+Base.Matrix(A::CuSparseMatrixCSC) = Matrix(SparseMatrixCSC(A))
+
+Base.show(io::IO, ::MIME"text/plain", A::CuSparseMatrixCSC) = Base.show(io, A)
+function Base.show(io::IO, A::CuSparseMatrixCSC)
+    print(io, SparseMatrixCSC(A))
+end
