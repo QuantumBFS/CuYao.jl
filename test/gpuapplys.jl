@@ -1,20 +1,21 @@
 using LinearAlgebra, Yao.ConstGate
-using Test
+using Test, Random
 using CuYao
 using StaticArrays
 using Yao.ConstGate: SWAPGate
 using CuArrays
 
-@testset "gpu unapply!" begin
+@testset "gpu instruct nbit!" begin
+    Random.seed!(3)
     nbit = 6
     N = 1<<nbit
     LOC1 = SVector{2}([0, 1])
     v1 = randn(ComplexF32, N)
     vn = randn(ComplexF32, N, 333)
 
-    for U1 in [mat(H), mat(Y), mat(Z), mat(I2), mat(P0)]
-        @test instruct!(v1 |> cu, U1, (3,)) |> Vector ≈ instruct!(v1 |> copy, U1, (3,))
-        @test instruct!(vn |> cu, U1, (3,)) |> Matrix ≈ instruct!(vn |> copy, U1, (3,))
+    for UN in [rand_unitary(4), mat(CNOT), mat(control(2,2,1=>Z)), mat(put(2,2=>I2)), mat(put(2,2=>P0))]
+        @test instruct!(v1 |> CuArray, UN, (3,1)) |> Vector ≈ instruct!(v1 |> copy, UN, (3,1))
+        @test instruct!(vn |> CuArray, UN, (3,1)) |> Matrix ≈ instruct!(vn |> copy, UN, (3,1))
     end
     # sparse matrix like P0, P1 et. al. are not implemented.
 end
@@ -26,11 +27,11 @@ end
     v1 = randn(ComplexF32, N)
     vn = randn(ComplexF32, N, 333)
 
-    @test instruct!(v1 |> cu, Val(:SWAP), (3,5)) |> Vector ≈ instruct!(v1 |> copy, Val(:SWAP), (3,5))
-    @test instruct!(vn |> cu, Val(:SWAP), (3,5)) |> Matrix ≈ instruct!(vn |> copy, Val(:SWAP), (3,5))
+    @test instruct!(v1 |> CuArray, Val(:SWAP), (3,5)) |> Vector ≈ instruct!(v1 |> copy, Val(:SWAP), (3,5))
+    @test instruct!(vn |> CuArray, Val(:SWAP), (3,5)) |> Matrix ≈ instruct!(vn |> copy, Val(:SWAP), (3,5))
 end
 
-@testset "gpu instruct!" begin
+@testset "gpu instruct! 1bit" begin
     nbit = 6
     N = 1<<nbit
     LOC1 = SVector{2}([0, 1])
@@ -38,8 +39,8 @@ end
     vn = randn(ComplexF32, N, 333)
 
     for U1 in [mat(H), mat(Y), mat(Z), mat(I2), mat(P0)]
-        @test instruct!(v1 |> cu, U1, (3,)) |> Vector ≈ instruct!(v1 |> copy, U1, (3,))
-        @test instruct!(vn |> cu, U1, (3,)) |> Matrix ≈ instruct!(vn |> copy, U1, (3,))
+        @test instruct!(v1 |> CuArray, U1, (3,)) |> Vector ≈ instruct!(v1 |> copy, U1, (3,))
+        @test instruct!(vn |> CuArray, U1, (3,)) |> Matrix ≈ instruct!(vn |> copy, U1, (3,))
     end
     # sparse matrix like P0, P1 et. al. are not implemented.
 end
@@ -52,10 +53,10 @@ end
     vn = randn(ComplexF32, N, 333)
 
     for G in [:X, :Y, :Z, :T, :Tdag, :S, :Sdag]
-        @test instruct!(v1 |> cu, Val(G), (3,)) |> Vector ≈ instruct!(v1 |> copy, Val(G), (3,))
-        @test instruct!(vn |> cu, Val(G), (3,)) |> Matrix ≈ instruct!(vn |> copy, Val(G), (3,))
-        @test instruct!(v1 |> cu, Val(G), (1,3,4)) |> Vector ≈ instruct!(v1 |> copy, Val(G), (1,3,4))
-        @test instruct!(vn |> cu,  Val(G),(1,3,4)) |> Matrix ≈ instruct!(vn |> copy, Val(G), (1,3,4))
+        @test instruct!(v1 |> CuArray, Val(G), (3,)) |> Vector ≈ instruct!(v1 |> copy, Val(G), (3,))
+        @test instruct!(vn |> CuArray, Val(G), (3,)) |> Matrix ≈ instruct!(vn |> copy, Val(G), (3,))
+        @test instruct!(v1 |> CuArray, Val(G), (1,3,4)) |> Vector ≈ instruct!(v1 |> copy, Val(G), (1,3,4))
+        @test instruct!(vn |> CuArray,  Val(G),(1,3,4)) |> Matrix ≈ instruct!(vn |> copy, Val(G), (1,3,4))
     end
 end
 
@@ -67,10 +68,10 @@ end
     vn = randn(ComplexF32, N, 333)
 
     for G in [:X, :Y, :Z, :T, :Tdag, :S, :Sdag]
-        @test instruct!(v1 |> cu, Val(G), (3,), (4,5), (0, 1)) |> Vector ≈ instruct!(v1 |> copy, Val(G), (3,), (4,5), (0, 1))
-        @test instruct!(vn |> cu, Val(G), (3,), (4,5), (0, 1)) |> Matrix ≈ instruct!(vn |> copy, Val(G), (3,), (4,5), (0, 1))
-        @test instruct!(v1 |> cu, Val(G), (3,), (1,), (1,)) |> Vector ≈ instruct!(v1 |> copy, Val(G),(3,), (1,), (1,))
-        @test instruct!(vn |> cu, Val(G), (3,), (1,), (1,)) |> Matrix ≈ instruct!(vn |> copy, Val(G),(3,), (1,), (1,))
+        @test instruct!(v1 |> CuArray, Val(G), (3,), (4,5), (0, 1)) |> Vector ≈ instruct!(v1 |> copy, Val(G), (3,), (4,5), (0, 1))
+        @test instruct!(vn |> CuArray, Val(G), (3,), (4,5), (0, 1)) |> Matrix ≈ instruct!(vn |> copy, Val(G), (3,), (4,5), (0, 1))
+        @test instruct!(v1 |> CuArray, Val(G), (3,), (1,), (1,)) |> Vector ≈ instruct!(v1 |> copy, Val(G),(3,), (1,), (1,))
+        @test instruct!(vn |> CuArray, Val(G), (3,), (1,), (1,)) |> Matrix ≈ instruct!(vn |> copy, Val(G),(3,), (1,), (1,))
     end
 end
 
