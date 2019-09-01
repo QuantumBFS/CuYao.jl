@@ -5,7 +5,7 @@ import Yao: expect
 
 export cpu, cu, GPUReg
 
-cu(reg::ArrayReg{B}) where B = ArrayReg{B}(cu(reg.state))
+cu(reg::ArrayReg{B}) where B = ArrayReg{B}(CuArray(reg.state))
 cpu(reg::ArrayReg{B}) where B = ArrayReg{B}(collect(reg.state))
 const GPUReg{B, T, MT} = ArrayReg{B, T, MT} where MT<:GPUArray
 
@@ -41,7 +41,8 @@ function measure_remove!(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg{B},
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
         if state <= length(nregm)
             i,j = GPUArrays.gpu_ind2sub(nregm, state)
-            @inbounds nregm[i,j] = regm[res[j]+1,i,j]/CUDAnative.sqrt(pl[res[j]+1, j])
+            r = Int(res[j])+1
+            @inbounds nregm[i,j] = regm[r,i,j]/CUDAnative.sqrt(pl[r, j])
         end
         return
     end
@@ -62,7 +63,7 @@ function measure!(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg{B, T}, ::A
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
         if state <= length(regm)
             k,i,j = GPUArrays.gpu_ind2sub(regm, state)
-            @inbounds rind = res[j] + 1
+            @inbounds rind = Int(res[j]) + 1
             @inbounds regm[k,i,j] = k==rind ? regm[k,i,j]/CUDAnative.sqrt(pl[k, j]) : T(0)
         end
         return
@@ -84,7 +85,7 @@ function measure_collapseto!(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
         if state <= length(regm)
             k,i,j = GPUArrays.gpu_ind2sub(regm, state)
-            @inbounds rind = res[j] + 1
+            @inbounds rind = Int(res[j]) + 1
             @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDAnative.sqrt(pl[rind, j]))
             CuArrays.sync_threads()
             @inbounds k!=val+1 && (regm[k,i,j] = 0)

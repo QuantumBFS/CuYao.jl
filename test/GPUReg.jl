@@ -25,6 +25,7 @@ end
     reg = rand_state(10)
     greg = reg |> cu
     @test greg isa GPUReg
+    @test eltype(greg.state) == ComplexF64
     for reg in [rand_state(10, nbatch=333), rand_state(10)]
         greg = reg |> cu
         @test size(measure(greg |> copy, nshots=10)) == size(measure(reg, nshots=10))
