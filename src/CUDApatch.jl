@@ -63,6 +63,7 @@ export piecewise, cudiv
     threads_x, ceil(Int, x/threads_x)
 end
 
+# NOTE: the maximum block size is 65535
 @inline function cudiv(x::Int, y::Int)
     max_threads = 256
     threads_x = min(max_threads, x)
@@ -71,6 +72,9 @@ end
     blocks = ceil.(Int, (x, y) ./ threads)
     threads, blocks
 end
+
+fix_cudiv(A::AbstractVector, firstdim::Int) = cudiv(firstdim)
+fix_cudiv(A::AbstractMatrix, firstdim::Int) = cudiv(firstdim, size(A,2))
 
 piecewise(state::AbstractVector, inds) = state
 piecewise(state::AbstractMatrix, inds) = @inbounds view(state,:,inds[2])

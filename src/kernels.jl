@@ -1,147 +1,132 @@
 @inline function un_kernel(nbit::Int, cbits::NTuple{C, Int}, cvals::NTuple{C, Int}, U0::AbstractMatrix, locs::NTuple{M, Int}) where {C, M}
     U = (all(TupleTools.diff(locs).>0) ? U0 : reorder(U0, collect(locs)|>sortperm)) |> staticize
     MM = size(U0, 1)
-    locked_bits = (cbits..., locs...)
-    locked_vals = (cvals..., zeros(Int, M)...)
+    locked_bits = [cbits..., locs...]
+    locked_vals = [cvals..., zeros(Int, M)...]
     locs_raw = [i+1 for i in itercontrol(nbit, setdiff(1:nbit, locs), zeros(Int, nbit-M))] |> staticize
-    ctrl = controller(locked_bits, locked_vals)
+    configs = itercontrol(nbit, locked_bits, locked_vals)
 
-    @inline function kernel(state, inds)
-        x = inds[1]-1
-        ctrl(x) && unrows!(piecewise(state, inds), x+locs_raw, U)
+    length(configs), @inline function kernel(state, inds)
+        x = @inbounds configs[inds[1]]
+        unrows!(piecewise(state, inds), x+locs_raw, U)
     end
 end
 
-@inline function u1_kernel(U1::AbstractMatrix, ibit::Int)
+@inline function u1_kernel(nbit::Int, U1::AbstractMatrix, ibit::Int)
     a, c, b, d = U1
     step = 1<<(ibit-1)
-    ctrl = controller(ibit, 0)
+    configs = itercontrol(nbit, [ibit], [0])
 
-    @inline function kernel(state, inds)
-        i = inds[1]
-        if ctrl(i-1)
-            u1rows!(piecewise(state, inds), i, i+step, a, b, c, d)
-        end
+    length(configs), @inline function kernel(state, inds)
+        i = @inbounds configs[inds[1]]+1
+        u1rows!(piecewise(state, inds), i, i+step, a, b, c, d)
     end
 end
-u1_kernel(U1::SDSparseMatrixCSC, ibit::Int) = u1_kernel(U1|>Matrix, ibit)
+u1_kernel(nbit::Int, U1::SDSparseMatrixCSC, ibit::Int) = u1_kernel(nbit, U1|>Matrix, ibit)
 
-@inline function u1_kernel(U1::SDPermMatrix, ibit::Int)
-    U1.perm[1] == 1 && return u1_kernel(Diagonal(U1.vals), ibit)
+@inline function u1_kernel(nbit::Int, U1::SDPermMatrix, ibit::Int)
+    U1.perm[1] == 1 && return u1_kernel(nbit, Diagonal(U1.vals), ibit)
 
     mask = bmask(ibit)
     b, c = U1.vals[1], U1.vals[2]
     step = 1<<(ibit-1)
-    ctrl = controller(ibit, 0)
+    configs = itercontrol(nbit, [ibit], [0])
 
-    @inline function kernel(state, inds)
-        x = inds[1]-1
-        ctrl(x) && swaprows!(piecewise(state, inds), x+1, x+step+1, c, b)
+    length(configs), @inline function kernel(state, inds)
+        x = @inbounds configs[inds[1]] + 1
+        swaprows!(piecewise(state, inds), x, x+step, c, b)
     end
 end
-u1_kernel(U1::IMatrix, ibit::Int) = (state, inds) -> nothing
 
-@inline function u1_kernel(U1::SDDiagonal, ibit::Int)
+@inline function u1_kernel(nbit::Int, U1::SDDiagonal, ibit::Int)
     a, d = U1.diag
-    u1diag_kernel(ibit, a, d)
+    u1diag_kernel(nbit,ibit, a, d)
 end
 
-@inline function u1diag_kernel(ibit::Int, a, d)
+@inline function u1diag_kernel(nbit::Int, ibit::Int, a, d)
     mask = bmask(ibit)
-    @inline function kernel(state, inds)
+    1<<nbit, @inline function kernel(state, inds)
         i = inds[1]
         piecewise(state, inds)[i] *= anyone(i-1, mask) ? d : a
     end
 end
 
 ################ Specific kernels ##################
-x_kernel(bits::Ints) = cx_kernel((), (), bits::Ints)
-cx_kernel(cbits, cvals, loc::Int) = cx_kernel(cbits, cvals, (loc,))
-@inline function cx_kernel(cbits, cvals, bits::Ints)
-    ctrl = controller((cbits..., bits[1]), (cvals..., 0))
+x_kernel(nbit::Int, bits::Ints) = cx_kernel(nbit::Int, (), (), bits::Ints)
+cx_kernel(nbit::Int, cbits, cvals, loc::Int) = cx_kernel(nbit::Int, cbits, cvals, (loc,))
+@inline function cx_kernel(nbit::Int, cbits, cvals, bits::Ints)
+    configs = itercontrol(nbit, [cbits..., bits[1]], [cvals..., 0])
     mask = bmask(bits...)
-    #function kernel(state, inds)
-    @inline function kernel(state, inds)
-        i = inds[1]
-        b = i-1
-        ctrl(b) && swaprows!(piecewise(state, inds), i, flip(b, mask) + 1)
+    length(configs), @inline function kernel(state, inds)
+        b = @inbounds configs[inds[1]]
+        swaprows!(piecewise(state, inds), b+1, flip(b, mask) + 1)
         return
     end
 end
 
-@inline function pswap_kernel(m::Int, n::Int, theta::Real)
+@inline function pswap_kernel(nbit::Int, m::Int, n::Int, theta::Real)
     mask1 = bmask(m)
     mask2 = bmask(n)
     mask12 = mask1|mask2
     a, c, b_, d = mat(Rx(theta))
     e = exp(-im/2*theta)
-    @inline function kernel(state, inds)
-        i = inds[1]
-        b = i - 1
-        if b&mask1==0
-            i_ = b ⊻ mask12 + 1
-            if b&mask2==mask2
-                u1rows!(piecewise(state, inds), i, i_, a, b_, c, d)
-            else
-                @inbounds state[i,inds[2]] *= e
-                @inbounds state[i_,inds[2]] *= e
-            end
-        end
-        return
+    configs = itercontrol(nbit, [m,n], [0,0])
+    length(configs), @inline function kernel(state, inds)
+        @inbounds x = configs[inds[1]]
+        piecewise(state, inds)[x+1] *= e
+        piecewise(state, inds)[x⊻mask12+1] *= e
+        y = x ⊻ mask2
+        u1rows!(piecewise(state, inds), y+1, y⊻mask12+1, a, b_, c, d)
     end
 end
 
-@inline function y_kernel(bits::Ints)
+@inline function y_kernel(nbit::Int, bits::Ints)
     mask = bmask(Int, bits...)
-    ctrl = controller(bits[1], 0)
+    configs = itercontrol(nbit, [bits[1]], [0])
     bit_parity = length(bits)%2 == 0 ? 1 : -1
     factor = (-im)^length(bits)
-    @inline function kernel(state, inds)
-        i = inds[1]
-        b = i-1
-        if ctrl(b)
-            i_ = flip(b, mask) + 1
-            factor1 = count_ones(b&mask)%2 == 1 ? -factor : factor
-            factor2 = factor1*bit_parity
-            swaprows!(piecewise(state, inds), i, i_, factor2, factor1)
-        end
+    length(configs), @inline function kernel(state, inds)
+        b = @inbounds configs[inds[1]]
+        i_ = flip(b, mask) + 1
+        factor1 = count_ones(b&mask)%2 == 1 ? -factor : factor
+        factor2 = factor1*bit_parity
+        swaprows!(piecewise(state, inds), b+1, i_, factor2, factor1)
     end
 end
 
-@inline function z_kernel(bits::Ints)
+@inline function z_kernel(nbit::Int,bits::Ints)
     mask = bmask(bits...)
-    @inline function kernel(state, inds)
+    1<<nbit,@inline function kernel(state, inds)
         i = inds[1]
         piecewise(state, inds)[i] *= count_ones((i-1)&mask)%2==1 ? -1 : 1
         return
     end
 end
 
-@inline function zlike_kernel(bits::Ints, d::Union{ComplexF32, ComplexF64, Float64, Float32})
+@inline function zlike_kernel(nbit::Int,bits::Ints, d::Union{ComplexF32, ComplexF64, Float64, Float32})
     mask = bmask(Int32, bits...)
-    @inline function kernel(state, inds)
+    1<<nbit,@inline function kernel(state, inds)
         i = inds[1]
         piecewise(state, inds)[i] *= CUDAnative.pow(d, bit_count(Int32(i-1)&mask))
         return
     end
 end
 
-@inline function cdg_kernel(cbits, cvals, ibit, a, d)
+@inline function cdg_kernel(nbit::Int, cbits, cvals, ibit, a, d)
     ctrl = controller((cbits..., ibit), (cvals..., 1))
 
-    @inline function kernel(state, inds)
+    1<<nbit, @inline function kernel(state, inds)
         i = inds[1]
         piecewise(state, inds)[i] *= ctrl(i-1) ? d : a
     end
 end
 
-@inline function cy_kernel(cbits, cvals, bit::Int)
-    ctrl = controller((cbits..., bit), (cvals..., 0))
+@inline function cy_kernel(nbit, cbits, cvals, bit::Int)
+    configs = itercontrol(nbit, [cbits..., bit], [cvals..., 0])
     mask = bmask(bit)
-    @inline function kernel(state, inds)
-        i = inds[1]
-        b = i-1
-        ctrl(b) && swaprows!(piecewise(state, inds), i, flip(b, mask) + 1, im, -im)
+    length(configs), @inline function kernel(state, inds)
+        b = @inbounds configs[inds[1]]
+        swaprows!(piecewise(state, inds), b+1, flip(b, mask) + 1, im, -im)
     end
 end
 
@@ -149,10 +134,10 @@ for (G, FACTOR) in zip([:z, :s, :t, :sdag, :tdag], [:(-one(Int32)), :(1f0im), :(
     KERNEL = Symbol(G, :_kernel)
     CKERNEL = Symbol(:c, KERNEL)
     if G != :z
-        @eval $KERNEL(bits::Ints) = zlike_kernel(bits, $FACTOR)
+        @eval $KERNEL(nbit::Int, bits::Ints) = zlike_kernel(nbit, bits, $FACTOR)
     end
-    @eval $KERNEL(bit::Int) = u1diag_kernel(bit, one($FACTOR), $FACTOR)
-    @eval $CKERNEL(cbits, cvals, ibit::Int) = cdg_kernel(cbits, cvals, ibit, one($FACTOR), $FACTOR)
+    @eval $KERNEL(nbit::Int, bit::Int) = u1diag_kernel(nbit::Int, bit, one($FACTOR), $FACTOR)
+    @eval $CKERNEL(nbit::Int, cbits, cvals, ibit::Int) = cdg_kernel(nbit::Int, cbits, cvals, ibit, one($FACTOR), $FACTOR)
 end
 
 """
