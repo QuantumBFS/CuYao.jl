@@ -34,30 +34,17 @@ using Yao.ConstGate: S, T, Sdag, Tdag
 for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
     KERNEL = Symbol(G |> string |> lowercase, :_kernel)
 
-<<<<<<< HEAD
     @eval function _instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
-        length(locs) == 0 && return state
-
-        kf = $KERNEL(locs)
-        X, Y = cudiv(size(state)...)
-=======
         D, kf = $KERNEL(log2dim1(state), bits)
         X, Y = fix_cudiv(state, D)
->>>>>>> 04e3248e3c19a0b9243910cafa9f7b145aafdd30
         @cuda threads=X blocks=Y simple_kernel(kf, state)
         state
     end
 
     CKERNEL = Symbol(:c, KERNEL)
-<<<<<<< HEAD
     @eval function _instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
-        kf = $CKERNEL(clocs, cvals, loc...)
-        X, Y = cudiv(size(state)...)
-=======
-    @eval function instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
         D,kf = $CKERNEL(log2dim1(state), clocs, cvals, loc...)
         X, Y = fix_cudiv(state,D)
->>>>>>> 04e3248e3c19a0b9243910cafa9f7b145aafdd30
         @cuda threads=X blocks=Y simple_kernel(kf, state)
         state
     end
