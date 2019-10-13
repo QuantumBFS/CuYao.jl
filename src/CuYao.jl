@@ -4,6 +4,7 @@ using StatsBase
 using BitBasis
 using Reexport
 import TupleTools
+using Random
 
 using YaoArrayRegister
 using GPUArrays, CuArrays, CUDAnative

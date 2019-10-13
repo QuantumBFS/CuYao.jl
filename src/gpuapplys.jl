@@ -9,9 +9,9 @@ gpu_compatible(A::StaticArray) = A
 function instruct!(state::CuVecOrMat, U0::AbstractMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M}
     U0 = gpu_compatible(U0)
     # reorder a unirary matrix.
-    kf = un_kernel(log2dim1(state), clocs, cvals, U0, locs)
+    D, kf = un_kernel(log2dim1(state), clocs, cvals, U0, locs)
 
-    X, Y = cudiv(size(state)...)
+    X, Y = fix_cudiv(state, D)
     @cuda threads=X blocks=Y simple_kernel(kf, state)
     state
 end
@@ -19,33 +19,45 @@ instruct!(state::CuVecOrMat, U0::IMatrix, locs::NTuple{M, Int}, clocs::NTuple{C,
 instruct!(state::CuVecOrMat, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = instruct!(state, U0 |> Matrix, locs, clocs, cvals)
 
 ################## General U1 apply! ###################
-for MT in [:SDDiagonal, :SDPermMatrix, :AbstractMatrix, :IMatrix, :SDSparseMatrixCSC]
+for MT in [:SDDiagonal, :SDPermMatrix, :AbstractMatrix, :SDSparseMatrixCSC]
     @eval function instruct!(state::CuVecOrMat, U1::$MT, ibit::Tuple{Int})
-        kf = u1_kernel(U1, ibit...)
-        X, Y = cudiv(size(state)...)
+        D,kf = u1_kernel(log2dim1(state), U1, ibit...)
+        X, Y = fix_cudiv(state,D)
         @cuda threads=X blocks=Y simple_kernel(kf, state)
         state
     end
 end
+instruct!(state::CuVecOrMat, U::IMatrix, locs::Tuple{Int}) = state
 
 ################## XYZ #############
 using Yao.ConstGate: S, T, Sdag, Tdag
 for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
     KERNEL = Symbol(G |> string |> lowercase, :_kernel)
 
+<<<<<<< HEAD
     @eval function _instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
         length(locs) == 0 && return state
 
         kf = $KERNEL(locs)
         X, Y = cudiv(size(state)...)
+=======
+        D, kf = $KERNEL(log2dim1(state), bits)
+        X, Y = fix_cudiv(state, D)
+>>>>>>> 04e3248e3c19a0b9243910cafa9f7b145aafdd30
         @cuda threads=X blocks=Y simple_kernel(kf, state)
         state
     end
 
     CKERNEL = Symbol(:c, KERNEL)
+<<<<<<< HEAD
     @eval function _instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
         kf = $CKERNEL(clocs, cvals, loc...)
         X, Y = cudiv(size(state)...)
+=======
+    @eval function instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+        D,kf = $CKERNEL(log2dim1(state), clocs, cvals, loc...)
+        X, Y = fix_cudiv(state,D)
+>>>>>>> 04e3248e3c19a0b9243910cafa9f7b145aafdd30
         @cuda threads=X blocks=Y simple_kernel(kf, state)
         state
     end
@@ -72,20 +84,18 @@ function instruct!(state::CuVecOrMat, ::Val{:SWAP}, locs::Tuple{Int,Int})
     mask1 = bmask(b1)
     mask2 = bmask(b2)
 
-    X, Y = cudiv(size(state)...)
+    configs = itercontrol(log2dim1(state), [locs...], [1,0])
+    X, Y = fix_cudiv(state,length(configs))
     function kf(state, mask1, mask2)
         inds = ((blockIdx().x-1) * blockDim().x + threadIdx().x,
                        (blockIdx().y-1) * blockDim().y + threadIdx().y)
-        b = inds[1]-1
         c = inds[2]
         c <= size(state, 2) || return nothing
-        if b&mask1==0 && b&mask2==mask2
-            i = b+1
-            i_ = b ⊻ (mask1|mask2) + 1
-            temp = state[i, c]
-            state[i, c] = state[i_, c]
-            state[i_, c] = temp
-        end
+
+        b = configs[inds[1]]
+        i = b+1
+        i_ = b ⊻ (mask1|mask2) + 1
+        swaprows!(piecewise(state, inds), i, i_)
         nothing
     end
     @cuda threads=X blocks=Y kf(state, mask1, mask2)
@@ -97,8 +107,8 @@ end
 using Yao.ConstGate: SWAPGate
 
 function instruct!(state::CuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::Real)
-    kf = pswap_kernel(locs..., θ)
-    X, Y = cudiv(size(reg.state)...)
+    D, kf = pswap_kernel(log2dim1(state),locs..., θ)
+    X, Y = fix_cudiv(state, D)
     @cuda threads=X blocks=Y simple_kernel(kf, state)
     state
 end
