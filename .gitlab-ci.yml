@@ -2,31 +2,25 @@ variables:
   CI_IMAGE_TAG: 'cuda'
 
 include:
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/common.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_v1.0.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_v1.1.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_dev.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/coverage_v1.1.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/documentation_v1.1.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/test.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/coverage.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/documentation.yml'
 
 test:v1.0:
-  only:
-    - master
-    - staging
-    - trying
+  extends: .test:v1.0
+
+test:v1.1:
+  extends: .test:v1.1
 
 test:v1.2:
-  only:
-    - master
-    - staging
-    - trying
+  extends: .test:v1.2
+
+test:v1.3:
+  extends: .test:v1.3
 
 test:dev:
+  extends: .test:dev
   allow_failure: true
-  only:
-    - master
-    - staging
-    - trying
 
 coverage:
   only:
