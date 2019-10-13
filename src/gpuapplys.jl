@@ -32,24 +32,39 @@ end
 using Yao.ConstGate: S, T, Sdag, Tdag
 for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
     KERNEL = Symbol(G |> string |> lowercase, :_kernel)
-    @eval function instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, bits::NTuple{<:Any,Int})
-        length(bits) == 0 && return state
 
-        kf = $KERNEL(bits)
+    @eval function _instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
+        length(locs) == 0 && return state
+
+        kf = $KERNEL(locs)
         X, Y = cudiv(size(state)...)
         @cuda threads=X blocks=Y simple_kernel(kf, state)
         state
     end
 
     CKERNEL = Symbol(:c, KERNEL)
-    @eval function instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+    @eval function _instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
         kf = $CKERNEL(clocs, cvals, loc...)
         X, Y = cudiv(size(state)...)
         @cuda threads=X blocks=Y simple_kernel(kf, state)
         state
     end
-    @eval instruct!(state::CuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int}) = invoke(instruct!, Tuple{CuVecOrMat, Val{$(QuoteNode(G))}, Tuple{Int}, NTuple{C, Int}, NTuple{C, Int}} where C, state, vg, loc, cloc, cval)
-    @eval instruct!(state::CuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}) = invoke(instruct!, Tuple{CuVecOrMat, Val{$(QuoteNode(G))}, NTuple{<:Any, Int}} where C, state, vg, loc)
+
+    @eval function instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
+        _instruct!(state, g, locs)
+    end
+
+    @eval function instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{Int})
+        _instruct!(state, g, locs)
+    end
+
+    @eval function instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+        _instruct!(state, g, loc, clocs, cvals)
+    end
+
+    @eval function instruct!(state::CuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
+        _instruct!(state, vg, loc, cloc, cval)
+    end
 end
 
 function instruct!(state::CuVecOrMat, ::Val{:SWAP}, locs::Tuple{Int,Int})
