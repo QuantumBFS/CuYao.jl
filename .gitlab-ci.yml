@@ -3,24 +3,24 @@ variables:
 
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/test.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/coverage.yml'
+  # - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/coverage.yml'
   # - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/documentation.yml'
 
 test:v1.0:
   extends: .test:v1.0
 
-# test:v1.1:
-#   extends: .test:v1.1
+test:v1.1:
+  extends: .test:v1.1
 
-# test:v1.2:
-#   extends: .test:v1.2
+test:v1.2:
+  extends: .test:v1.2
 
-# test:v1.3:
-#   extends: .test:v1.3
+test:v1.3:
+  extends: .test:v1.3
 
-# test:dev:
-#   extends: .test:dev
-#   allow_failure: true
+test:dev:
+  extends: .test:dev
+  allow_failure: true
 
 # documentation:
 #   only:
