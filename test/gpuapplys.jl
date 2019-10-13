@@ -13,7 +13,14 @@ using CuArrays
     v1 = randn(ComplexF32, N)
     vn = randn(ComplexF32, N, 333)
 
-    for UN in [rand_unitary(4), mat(CNOT), mat(control(2,2,1=>Z)), mat(put(2,2=>I2)), mat(put(2,2=>P0))]
+    for UN in [
+            rand_unitary(ComplexF32, 4),
+            mat(ComplexF32, CNOT),
+            mat(ComplexF32, control(2,2,1=>Z)),
+            mat(ComplexF32, put(2,2=>I2)),
+            mat(ComplexF32, put(2,2=>P0))
+            ]
+
         @test instruct!(v1 |> CuArray, UN, (3,1)) |> Vector ≈ instruct!(v1 |> copy, UN, (3,1))
         @test instruct!(vn |> CuArray, UN, (3,1)) |> Matrix ≈ instruct!(vn |> copy, UN, (3,1))
     end

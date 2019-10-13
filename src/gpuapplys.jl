@@ -31,11 +31,14 @@ instruct!(state::CuVecOrMat, U::IMatrix, locs::Tuple{Int}) = state
 
 ################## XYZ #############
 using Yao.ConstGate: S, T, Sdag, Tdag
+
 for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
     KERNEL = Symbol(G |> string |> lowercase, :_kernel)
 
     @eval function _instruct!(state::CuVecOrMat, ::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
-        D, kf = $KERNEL(log2dim1(state), bits)
+        length(locs) == 0 && return state
+
+        D, kf = $KERNEL(log2dim1(state), locs)
         X, Y = fix_cudiv(state, D)
         @cuda threads=X blocks=Y simple_kernel(kf, state)
         state
@@ -49,21 +52,24 @@ for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
         state
     end
 
-    @eval function instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
-        _instruct!(state, g, locs)
+    @eval begin
+        function YaoBase.instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
+            _instruct!(state, g, locs)
+        end
+    
+        function YaoBase.instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int})
+            _instruct!(state, g, locs)
+        end
+    
+        function YaoBase.instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+            _instruct!(state, g, loc, clocs, cvals)
+        end
+    
+        function YaoBase.instruct!(state::CuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
+            _instruct!(state, vg, loc, cloc, cval)
+        end
     end
 
-    @eval function instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{Int})
-        _instruct!(state, g, locs)
-    end
-
-    @eval function instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
-        _instruct!(state, g, loc, clocs, cvals)
-    end
-
-    @eval function instruct!(state::CuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
-        _instruct!(state, vg, loc, cloc, cval)
-    end
 end
 
 function instruct!(state::CuVecOrMat, ::Val{:SWAP}, locs::Tuple{Int,Int})
