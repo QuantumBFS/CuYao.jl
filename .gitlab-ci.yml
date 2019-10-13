@@ -22,10 +22,6 @@ test:dev:
   extends: .test:dev
   allow_failure: true
 
-coverage:
-  only:
-    - master
-
-documentation:
-  only:
-    - master
+# documentation:
+#   only:
+#     - master
