@@ -1,6 +1,11 @@
 # CuYao.jl
 
+**Build status**: [![][gitlab-img]][gitlab-url]
 [![codecov](https://codecov.io/gh/QuantumBFS/CuYao.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/QuantumBFS/CuYao.jl)
+
+
+[gitlab-img]: https://gitlab.com/JuliaGPU/CuYao.jl/badges/master/pipeline.svg
+[gitlab-url]: https://gitlab.com/JuliaGPU/CuYao.jl/pipelines
 
 GPU support to [Yao.jl](https://github.com/QuantumBFS/Yao.jl).
 
