@@ -26,12 +26,14 @@ end
     greg = reg |> cu
     @test greg isa GPUReg
     @test eltype(greg.state) == ComplexF64
+    myvec(x) = Vector(x)
+    myvec(x::Number) = [x]
     for reg in [rand_state(10, nbatch=333), rand_state(10)]
         greg = reg |> cu
         @test size(measure(greg |> copy, nshots=10)) == size(measure(reg, nshots=10))
         @test size(measure!(greg |> copy)) == size(measure!(reg |> copy))
-        @test size(measure_collapseto!(greg |> copy)) == size(measure_collapseto!(reg |> copy))
-        @test size(measure_remove!(greg |> copy)) == size(measure_remove!(reg |> copy))
+        @test size(measure!(ResetTo(0), greg |> copy)) == size(measure!(ResetTo(0), reg |> copy))
+        @test size(measure!(RemoveMeasured(), greg |> copy)) == size(measure!(RemoveMeasured(), reg |> copy))
         @test select(greg |> copy, 12) ≈ select(reg, 12)
         @test size(measure!(greg |> copy |> focus!(3,4,1))) == size(measure!(reg |> copy |> focus!(3,4,1)))
         @test greg |> copy |> focus!(3,4,1) |> relax!(3,4,1) |> cpu ≈ reg
@@ -39,21 +41,21 @@ end
         if nbatch(greg) == 1
             greg1 = greg |> copy |> focus!(1,4,3)
             greg0 = copy(greg1)
-            res = measure_remove!(greg1)
-            @test select(greg0, res |> Vector) |> normalize! |> cpu ≈ greg1 |> cpu
+            res = measure!(RemoveMeasured(), greg1)
+            @test select(greg0, res |> myvec) |> normalize! |> cpu ≈ greg1 |> cpu
         end
 
         greg1 = greg |> copy |> focus!(1,4,3)
         greg0 = copy(greg1)
-        res = measure_collapseto!(greg1; config=3)
+        res = measure!(ResetTo(3), greg1)
         @test all(measure(greg1, nshots=10) .== 3)
         @test greg1 |> isnormalized
-        @test all(select.(greg0 |> cpu, res |> Vector) .|> normalize! .≈ select.(greg1 |> cpu, 3))
+        @test all(select.(greg0 |> cpu, res |> myvec) .|> normalize! .≈ select.(greg1 |> cpu, 3))
 
         greg1 = greg |> copy |> focus!(1,4,3)
         greg0 = copy(greg1)
         res = measure!(greg1)
-        @test all(select.(greg0 |> cpu, res |> Vector) .|> normalize! .≈ select.(greg1 |> cpu, res|>Vector))
+        @test all(select.(greg0 |> cpu, res |> myvec) .|> normalize! .≈ select.(greg1 |> cpu, res|>myvec))
     end
 
     @test join(rand_state(3) |> cu, rand_state(3) |> cu) |> nactive == 6
@@ -81,17 +83,17 @@ end
     @test size(res) == (32,)
     @test res2 == res
 
-    # measure_collapseto!
+    # measure! and reset
     reg2 = reg |> copy
-    res = measure_collapseto!(op, reg2, 2:6)
+    res = measure!(ResetTo(0), op, reg2, 2:6)
     reg2 |> repeat(8, H, 2:6)
-    res2 = measure_collapseto!(op, reg2, 2:6)
+    res2 = measure!(ResetTo(0), op, reg2, 2:6)
     @test size(res) == (32,) == size(res2)
     @test all(res2 .== 1)
 
-    # measure_remove!
+    # measure! and remove
     reg2 = reg |> copy
-    res = measure_remove!(op, reg2, 2:6)
+    res = measure!(RemoveMeasured(), op, reg2, 2:6)
     @test size(res) == (32,)
 
     reg = repeat(ArrayReg([1,-1+0im]/sqrt(2.0)), 10) |> cu

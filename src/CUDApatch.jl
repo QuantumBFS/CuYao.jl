@@ -101,3 +101,7 @@ function getindex(A::CuVector{T}, B::CuArray{<:Integer}) where T
     @cuda threads=X blocks=Y kernel(res, A, B)
     res
 end
+
+function getindex(A::AbstractVector, B::CuArray{<:Integer})
+    A[Array(B)]
+end

@@ -22,20 +22,23 @@ end
 end
 
 ############### MEASURE ##################
-measure(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg{1}, ::AllLocs; nshots::Int=1) = _measure(rng::AbstractRNG, reg |> probs |> Vector, nshots)
-# TODO: optimize the batch dimension using parallel sampling
-function measure(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg{B}, ::AllLocs; nshots::Int=1) where B
-    regm = reg |> rank3
-    pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
-    _measure(rng::AbstractRNG, pl |> Matrix, nshots)
+function measure(::ComputationalBasis, reg::GPUReg{1}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG, nshots::Int=1)
+    _measure(rng, reg |> probs |> Vector, nshots)
 end
 
-function measure_remove!(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg{B}, ::AllLocs) where B
+# TODO: optimize the batch dimension using parallel sampling
+function measure(::ComputationalBasis, reg::GPUReg{B}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG, nshots::Int=1) where B
+    regm = reg |> rank3
+    pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
+    _measure(rng, pl |> Matrix, nshots)
+end
+
+function measure!(::RemoveMeasured, ::ComputationalBasis, reg::GPUReg{B}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where B
     regm = reg |> rank3
     nregm = similar(regm, 1<<nremain(reg), B)
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
-    res_cpu = map(ib->_measure(rng::AbstractRNG, view(pl_cpu, :, ib), 1)[], 1:B)
+    res_cpu = map(ib->_measure(rng, view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
     @inline function kernel(nregm, regm, res, pl)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
@@ -49,14 +52,14 @@ function measure_remove!(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg{B},
     X, Y = cudiv(length(nregm))
     @cuda threads=X blocks=Y kernel(nregm, regm, res, pl)
     reg.state = reshape(nregm,1,:)
-    res
+    B == 1 ? Array(res)[] : res
 end
 
-function measure!(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLocs) where {B, T}
+function measure!(::NoPostProcess, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where {B, T}
     regm = reg |> rank3
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
-    res_cpu = map(ib->_measure(rng::AbstractRNG, view(pl_cpu, :, ib), 1)[], 1:B)
+    res_cpu = map(ib->_measure(rng, view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
 
     @inline function kernel(regm, res, pl)
@@ -71,14 +74,14 @@ function measure!(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg{B, T}, ::A
 
     X, Y = cudiv(length(regm))
     @cuda threads=X blocks=Y kernel(regm, res, pl)
-    res
+    B == 1 ? Array(res)[] : res
 end
 
-function measure_collapseto!(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLocs; config=0) where {B, T}
+function measure!(rst::ResetTo, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where {B, T}
     regm = reg |> rank3
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
-    res_cpu = map(ib->_measure(rng::AbstractRNG, view(pl_cpu, :, ib), 1)[], 1:B)
+    res_cpu = map(ib->_measure(rng, view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
 
     @inline function kernel(regm, res, pl, val)
@@ -94,8 +97,8 @@ function measure_collapseto!(rng::AbstractRNG, ::ComputationalBasis, reg::GPUReg
     end
 
     X, Y = cudiv(length(regm))
-    @cuda threads=X blocks=Y kernel(regm, res, pl, config)
-    res
+    @cuda threads=X blocks=Y kernel(regm, res, pl, rst.x)
+    B == 1 ? Array(res)[] : res
 end
 
 import YaoArrayRegister: insert_qubits!, join
@@ -121,7 +124,7 @@ function join(reg1::GPUReg{B}, reg2::GPUReg{B}) where {B}
     s1 = reg1 |> rank3
     s2 = reg2 |> rank3
     state = batched_kron(s1, s2)
-    ArrayReg{B}(reshape(state, size(state, 1), :))
+    ArrayReg{B}(copy(reshape(state, size(state, 1), :)))
 end
 
 export insert_qubits!
@@ -133,10 +136,12 @@ function insert_qubits!(reg::GPUReg{B}, loc::Int; nqubits::Int=1) where B
     reg
 end
 
-for FUNC in [:measure!, :measure_collapseto!, :measure_remove!]
+#=
+for FUNC in [:measure!, :measure!]
     @eval function $FUNC(rng::AbstractRNG, op::AbstractBlock, reg::GPUReg, al::AllLocs; kwargs...) where B
         E, V = eigen!(mat(op) |> Matrix)
         ei = Eigen(E|>cu, V|>cu)
         $FUNC(rng::AbstractRNG, ei, reg, al; kwargs...)
     end
 end
+=#

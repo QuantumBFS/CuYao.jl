@@ -8,7 +8,7 @@
 
     length(configs), @inline function kernel(state, inds)
         x = @inbounds configs[inds[1]]
-        unrows!(piecewise(state, inds), x+locs_raw, U)
+        unrows!(piecewise(state, inds), x .+ locs_raw, U)
     end
 end
 
