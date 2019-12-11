@@ -2,30 +2,38 @@ using LinearAlgebra, Yao.ConstGate
 using Test, Random
 using CuYao
 using StatsBase: Weights
+using BitBasis
 using StaticArrays
 using QuAlgorithmZoo
 using CuArrays
+using YaoExtensions
+using YaoExtensions: NDWeights
 
-function CuYao.expect(stat::StatFunctional{2, <:Function}, xs::CuVector{T}) where T
+function CuYao.expect(stat::StatFunctional{2, <:Function}, xs::NDWeights{M,<:CuArray}) where {M}
+    xs = xs.values
     N = length(xs)
-    s = reduce(+, stat.data.(xs', xs))
-    d = mapreduce(xi->stat.data(xi, xi), +, xs)
+    @show stat.f.(xs', xs)
+    s = sum(stat.f.(xs', xs))
+    d = mapreduce(xi->stat.f(xi, xi), +, xs)
     (s-d)/(N*(N-1))
 end
 
-function CuYao.expect(stat::StatFunctional{2, <:Function}, xs::CuVector, ys::CuVector)
+function CuYao.expect(stat::StatFunctional{2, <:Function}, xs::NDWeights{D,<:CuArray}, ys::NDWeights{D,<:CuArray}) where D
+    xs = xs.values
+    ys = ys.values
     M = length(xs)
     N = length(ys)
-    reduce(+, stat.data.(xs', ys))/M/N
+    sum(stat.f.(xs', ys))./M./N
 end
 @testset "expect stat functional" begin
-    sf(x, y) = abs(x-y)
+    sf(x, y) = abs(buffer(x) - buffer(y))
     a = randn(1024)
     ca = a |> cu
     b = randn(1024)
     cb = b |> cu
-    @test expect(StatFunctional{2}(sf), a, b) ≈ expect(StatFunctional{2}(sf), ca, cb)
-    @test expect(StatFunctional{2}(sf), a) ≈ expect(StatFunctional{2}(sf), ca)
+    ssf = StatFunctional{2}(sf)
+    @test expect(ssf, a |> as_weights, b |> as_weights) ≈ expect(ssf, ca |> as_weights, cb |> as_weights)
+    @test expect(ssf, a |> as_weights) ≈ expect(ssf, ca |> as_weights)
 end
 
 function loss_expect!(circuit::AbstractBlock, op::AbstractBlock)
@@ -79,32 +87,30 @@ end
     f(x::Number, y::Number) = Float64(abs(x-y) < 1.5)
     x = 0:1<<nbit-1
     h = f.(x', x)
-    V = StatFunctional(h)
     VF = StatFunctional{2}(f)
     prs = [1=>2, 2=>3, 3=>1]
-    c = chain(4, repeat(4, H, 1:4), put(4, 3=>Rz(0.5)) |> autodiff(:BP), control(2, 1=>X), put(4, 4=>Ry(0.2)) |> autodiff(:QC))
+    c = chain(4, repeat(4, H, 1:4), put(4, 3=>Rz(0.5)), control(2, 1=>X), put(4, 4=>Ry(0.2))
     dispatch!(c, :random)
-    dbs = collect_blocks(AbstractDiff, c)
+    dbs = collect_blocks(RotationGate, c)
 
     p0 = zero_state(nbit) |> c |> probs |> Weights
     sample0 = measure(zero_state(nbit) |> c, nshots=5000)
-    loss0 = expect(V, p0)
     gradsn = numdiff.(()->expect(V, zero_state(nbit) |> c |> probs |> Weights), dbs)
-    gradse = statdiff.(()->zero_state(nbit) |> c |> probs |> Weights, dbs, Ref(V), initial=p0)
-    gradsf = statdiff.(()->measure(zero_state(nbit) |> c, nshots=5000), dbs, Ref(VF), initial=sample0)
+    gradse = faithful_grad(VF, zero_state(nbit) => c)
+    gradsee = expect'(VF, zero_state(nbit) => c)
     @test all(isapprox.(gradse, gradsn, atol=1e-4))
-    @test norm(gradsf-gradse)/norm(gradsf) <= 0.2
+    @test all(isapprox.(gradsee, gradse, atol=1e-4))
 
     # 1D
-    h = randn(1<<nbit)
+    h(x) = exp(x)
     V = StatFunctional(h)
-    c = chain(4, repeat(4, H, 1:4), put(4, 3=>Rz(0.5)) |> autodiff(:BP), control(2, 1=>X), put(4, 4=>Ry(0.2)) |> autodiff(:QC))
+    c = chain(4, repeat(4, H, 1:4), put(4, 3=>Rz(0.5)), control(2, 1=>X), put(4, 4=>Ry(0.2)))
     dispatch!(c, :random)
-    dbs = collect_blocks(AbstractDiff, c)
+    dbs = collect_blocks(RotationGate, c)
 
     p0 = zero_state(nbit) |> c |> probs
     loss0 = expect(V, p0 |> as_weights)
     gradsn = numdiff.(()->expect(V, zero_state(nbit) |> c |> probs |> as_weights), dbs)
-    gradse = statdiff.(()->zero_state(nbit) |> c |> probs |> as_weights, dbs, Ref(V))
+    gradse = faithful_grad(V, zero_state(nbit) => c)
     @test all(isapprox.(gradse, gradsn, atol=1e-4))
 end

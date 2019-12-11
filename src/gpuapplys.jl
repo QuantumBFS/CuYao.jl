@@ -56,15 +56,15 @@ for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
         function YaoBase.instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
             _instruct!(state, g, locs)
         end
-    
+
         function YaoBase.instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int})
             _instruct!(state, g, locs)
         end
-    
+
         function YaoBase.instruct!(state::CuVecOrMat, g::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
             _instruct!(state, g, loc, clocs, cvals)
         end
-    
+
         function YaoBase.instruct!(state::CuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
             _instruct!(state, vg, loc, cloc, cval)
         end
@@ -104,4 +104,11 @@ function instruct!(state::CuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::
     X, Y = fix_cudiv(state, D)
     @cuda threads=X blocks=Y simple_kernel(kf, state)
     state
+end
+
+using YaoBlocks
+function YaoBlocks._apply_fallback!(r::GPUReg{B,T}, b::AbstractBlock) where {B,T}
+    YaoBlocks._check_size(r, b)
+    r.state .= CuArrays.adapt(CuArray{T}, mat(T, b)) * r.state
+    return r
 end
