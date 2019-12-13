@@ -2,18 +2,12 @@ variables:
   CI_IMAGE_TAG: 'cuda'
 
 include:
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/test.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
   # - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/coverage.yml'
   # - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/documentation.yml'
 
 test:v1.0:
   extends: .test:v1.0
-
-test:v1.1:
-  extends: .test:v1.1
-
-test:v1.2:
-  extends: .test:v1.2
 
 test:v1.3:
   extends: .test:v1.3
