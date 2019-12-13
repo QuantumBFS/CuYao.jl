@@ -1,21 +1,32 @@
-variables:
-  CI_IMAGE_TAG: 'cuda'
-
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
-  # - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/coverage.yml'
-  # - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/documentation.yml'
 
-test:v1.0:
-  extends: .test:v1.0
+image: nvidia/cuda:10.1-devel
 
-test:v1.3:
-  extends: .test:v1.3
+variables:
+  JULIA_CUDA_VERBOSE: 'true'
 
-test:dev:
-  extends: .test:dev
+julia:1.0:
+  extends:
+    - .julia:1.0
+    - .test
+  tags:
+    - nvidia
+
+julia:1.3:
+  extends:
+    - .julia:1.3
+    - .test
+  tags:
+    - nvidia
+
+julia:nightly:
+  extends:
+    - .julia:nightly
+    - .test
+  tags:
+    - nvidia
   allow_failure: true
-
 # documentation:
 #   only:
 #     - master
