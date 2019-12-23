@@ -1,6 +1,6 @@
 import CuArrays: cu
-import YaoArrayRegister: _measure, measure, measure!, measure_collapseto!, measure_remove!
-import YaoBase: batch_normalize!
+import Yao.YaoArrayRegister: _measure, measure, measure!, measure_collapseto!, measure_remove!
+import Yao.YaoBase: batch_normalize!
 import Yao: expect
 
 export cpu, cu, GPUReg
@@ -101,7 +101,7 @@ function measure!(rst::ResetTo, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLo
     B == 1 ? Array(res)[] : res
 end
 
-import YaoArrayRegister: insert_qubits!, join
+import Yao.YaoArrayRegister: insert_qubits!, join
 function batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2}
     res = CuArrays.zeros(promote_type(T1,T2), size(A,1)*size(B, 1), size(A,2)*size(B,2), size(A, 3))
     @inline function kernel(res, A, B)

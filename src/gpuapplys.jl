@@ -1,4 +1,5 @@
-import YaoArrayRegister: u1rows!, unrows!, autostatic, instruct!, swaprows!
+using Yao.YaoBase
+import Yao.YaoArrayRegister: u1rows!, unrows!, autostatic, instruct!, swaprows!
 
 include("kernels.jl")
 
@@ -106,7 +107,7 @@ function instruct!(state::CuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::
     state
 end
 
-using YaoBlocks
+using Yao.YaoBlocks
 function YaoBlocks._apply_fallback!(r::GPUReg{B,T}, b::AbstractBlock) where {B,T}
     YaoBlocks._check_size(r, b)
     r.state .= CuArrays.adapt(CuArray{T}, mat(T, b)) * r.state
