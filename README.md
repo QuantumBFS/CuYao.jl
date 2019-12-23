@@ -37,7 +37,7 @@ For current master
 pkg> add CuYao#master
 ```
 
-You don't need to install Yao if you already have `CuYao`. They share the same API except CUDA backend.
+You don't need to install Yao if you have `CuYao` installed. They share the same API except CUDA backend.
 
 ## Documentation
 
@@ -59,7 +59,7 @@ cureg |> relax!(4,1,3) |> cpu
 
 Some quantum algorithms are implemented with Yao in [QuAlgorithmZoo](https://github.com/QuantumBFS/QuAlgorithmZoo.jl).
 
-### Online Documentation
+### Online Documentation For Yao
 
 - [**STABLE**](https://quantumbfs.github.io/Yao.jl/stable) — most recently tagged version of the documentation.
 - [**LATEST**](https://quantumbfs.github.io/Yao.jl/latest) — in-development version of the documentation.
@@ -67,25 +67,25 @@ Some quantum algorithms are implemented with Yao in [QuAlgorithmZoo](https://git
 ## Features
 ### Supported Gates
 
-- [x] general U(N) gate
-- [x] general U(1) gate
-- [x] better X, Y, Z gate
-- [x] better T, S gate
-- [x] SWAP gate
-- [x] better control gates
-- [x] BP diff blocks
+- general U(N) gate
+- general U(1) gate
+- better X, Y, Z gate
+- better T, S gate
+- SWAP gate
+- better control gates
+- BP diff blocks
 
 ### Supported Register Operations
-- [x] measure!, measure_reset!, measure_remove!, select
-- [x] addbit!
-- [x] insert_qubit!
-- [x] focus!, relax!
-- [x] join
-- [x] density_matrix
+- measure!, measure_reset!, measure_remove!, select
+- addbit!
+- insert_qubit!
+- focus!, relax!
+- join
+- density_matrix
 
 ### Other Operations
-- [x] statistic functional diff blocks
-- [x] expect for statistic functional
+- statistic functional diff blocks
+- expect for statistic functional
 
 
 ## Communication
