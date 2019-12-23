@@ -41,7 +41,7 @@ You don't need to install Yao if you already have `CuYao`. They share the same A
 
 ## Documentation
 
-`CuYao.jl` provides only two new APIs, `reg |> cu` to upload a register to GPU, and `cureg |> cpu` to download a register to CPU.
+`CuYao.jl` provides only two extra APIs, `reg |> cu` to upload a register to GPU, and `cureg |> cpu` to download a register to CPU.
 
 To start, see the following example
 ```julia
