@@ -6,7 +6,7 @@ using Reexport
 import TupleTools
 using Random
 
-using YaoArrayRegister
+using Yao.YaoArrayRegister
 using GPUArrays, CuArrays, CUDAnative
 @reexport using Yao
 
