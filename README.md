@@ -1,8 +1,3 @@
-<div align="center"> <img
-src="http://yaoquantum.org/assets/images/logo.png"
-alt="Yao Logo" width="210"></img>
-</div>
-
 **Build status**: [![][gitlab-img]][gitlab-url]
 
 [gitlab-img]: https://gitlab.com/JuliaGPU/CuYao.jl/badges/master/pipeline.svg
