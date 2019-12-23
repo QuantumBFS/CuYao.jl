@@ -20,7 +20,7 @@ CuYao is a &nbsp;
         <img src="https://julialang.org/favicon.ico" width="16em">
         Julia Language
     </a>
-    &nbsp; package. It provides CUDA support for [Yao.jl](https://github.com/QuantumBFS/Yao.jl). To install CuYao,
+    &nbsp; package. It provides CUDA support for <a href="https://github.com/QuantumBFS/Yao.jl">Yao.jl</a>. To install CuYao,
     please <a href="https://docs.julialang.org/en/v1/manual/getting-started/">open
     Julia's interactive session (known as REPL)</a> and press <kbd>]</kbd> key in the REPL to use the package mode, then type the following command
 </p>
