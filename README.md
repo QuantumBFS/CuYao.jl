@@ -41,6 +41,8 @@ You don't need to install Yao if you have `CuYao` installed. They share the same
 
 ## Documentation
 
+For documentation of [Yao](https://github.com/QuantumBFS/Yao.jl), please refer to [documentation (stable)](https://quantumbfs.github.io/Yao.jl/stable).
+
 `CuYao.jl` provides only two extra APIs, `reg |> cu` to upload a register to GPU, and `cureg |> cpu` to download a register to CPU.
 
 To start, see the following example
@@ -52,17 +54,6 @@ cureg |> put(9, 2=>Z)
 measure!(cureg |> addbits!(1) |> focus!(4,1,3))
 cureg |> relax!(4,1,3) |> cpu
 ```
-
-### [Tutorial](https://tutorials.yaoquantum.org) | Learning Yao by Examples
-
-### Algorithm Zoo
-
-Some quantum algorithms are implemented with Yao in [QuAlgorithmZoo](https://github.com/QuantumBFS/QuAlgorithmZoo.jl).
-
-### Online Documentation For Yao
-
-- [**STABLE**](https://quantumbfs.github.io/Yao.jl/stable) — most recently tagged version of the documentation.
-- [**LATEST**](https://quantumbfs.github.io/Yao.jl/latest) — in-development version of the documentation.
 
 ## Features
 ### Supported Gates
@@ -86,17 +77,6 @@ Some quantum algorithms are implemented with Yao in [QuAlgorithmZoo](https://git
 ### Other Operations
 - statistic functional diff blocks
 - expect for statistic functional
-
-
-## Communication
-
-- Github issues: Please feel free to ask questions and report bugs, feature request in issues
-- Slack: you can [join julia's slack channel](https://slackinvite.julialang.org/) and ask Yao related questions in `#yao-dev` channel.
-- Julia discourse: You can also ask questions on [julia discourse](https://discourse.julialang.org/) or the [Chinese discourse](https://discourse.juliacn.com/)
-
-## Contribution
-
-Please read our [contribution guide](https://github.com/QuantumBFS/Yao.jl/blob/master/CONTRIBUTING.md).
 
 ## The Team
 
