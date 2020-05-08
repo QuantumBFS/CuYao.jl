@@ -75,9 +75,10 @@ piecewise(state::AbstractMatrix, inds) = @inbounds view(state,:,inds[2])
 import Base: kron, getindex
 function kron(A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1}}}, B::Union{CuArray{T2}, Adjoint{<:Any, <:CuArray{T2}}}) where {T1, T2}
     res = CuArrays.zeros(promote_type(T1,T2), (size(A).*size(B))...)
+    CI = Base.CartesianIndices(res)
     @inline function kernel(res, A, B)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        inds = GPUArrays.gpu_ind2sub(res, state)
+        @inbounds inds = CI[state].I
         inds_A = (inds.-1) .÷ size(B) .+ 1
         inds_B = (inds.-1) .% size(B) .+ 1
         state <= length(res) && (@inbounds res[state] = A[inds_A...]*B[inds_B...])

@@ -34,7 +34,7 @@ end
         @test size(measure!(greg |> copy)) == size(measure!(reg |> copy))
         @test size(measure!(ResetTo(0), greg |> copy)) == size(measure!(ResetTo(0), reg |> copy))
         @test size(measure!(RemoveMeasured(), greg |> copy)) == size(measure!(RemoveMeasured(), reg |> copy))
-        @test select(greg |> copy, 12) ≈ select(reg, 12)
+        @test select(greg |> copy, 12) |> cpu ≈ select(reg, 12)
         @test size(measure!(greg |> copy |> focus!(3,4,1))) == size(measure!(reg |> copy |> focus!(3,4,1)))
         @test greg |> copy |> focus!(3,4,1) |> relax!(3,4,1) |> cpu ≈ reg
 
@@ -64,11 +64,11 @@ end
 
 @testset "insert_qubits!" begin
     reg = rand_state(5; nbatch=10)
-    res = insert_qubits!(reg |> cu, 3; nqubits=2)
+    res = insert_qubits!(reg |> cu, 3; nqubits=2) |> cpu
     @test insert_qubits!(reg, 3; nqubits=2) ≈ res
 
     reg = rand_state(5, nbatch=10) |>focus!(2,3)
-    res = insert_qubits!(reg |> cu, 3; nqubits=2)
+    res = insert_qubits!(reg |> cu, 3; nqubits=2) |> cpu
     @test insert_qubits!(reg, 3; nqubits=2) ≈ res
 end
 

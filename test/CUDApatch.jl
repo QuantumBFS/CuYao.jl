@@ -19,7 +19,7 @@ end
 
 @testset "permutedims vector" begin
     ca = randn(ComplexF64,3,4,5,1)
-    @test permutedims(CuArray(ca), [2,1,4,3]) ≈ permutedims(ca, [2,1,4,3])
+    @test permutedims(CuArray(ca), [2,1,4,3]) |> Array ≈ permutedims(ca, [2,1,4,3])
 end
 
 @testset "Complex pow" begin

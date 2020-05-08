@@ -7,7 +7,7 @@ export cpu, cu, GPUReg
 
 cu(reg::ArrayReg{B}) where B = ArrayReg{B}(CuArray(reg.state))
 cpu(reg::ArrayReg{B}) where B = ArrayReg{B}(collect(reg.state))
-const GPUReg{B, T, MT} = ArrayReg{B, T, MT} where MT<:GPUArray
+const GPUReg{B, T, MT} = ArrayReg{B, T, MT} where MT<:CuArray
 
 function batch_normalize!(s::CuSubArr, p::Real=2)
     p!=2 && throw(ArgumentError("p must be 2!"))
@@ -40,11 +40,12 @@ function measure!(::RemoveMeasured, ::ComputationalBasis, reg::GPUReg{B}, ::AllL
     pl_cpu = pl |> Matrix
     res_cpu = map(ib->_measure(rng, view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
+    CI = Base.CartesianIndices(nregm)
     @inline function kernel(nregm, regm, res, pl)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
         if state <= length(nregm)
-            i,j = GPUArrays.gpu_ind2sub(nregm, state)
-            r = Int(res[j])+1
+            @inbounds i,j = CI[state].I
+            @inbounds r = Int(res[j])+1
             @inbounds nregm[i,j] = regm[r,i,j]/CUDAnative.sqrt(pl[r, j])
         end
         return
@@ -61,11 +62,12 @@ function measure!(::NoPostProcess, ::ComputationalBasis, reg::GPUReg{B, T}, ::Al
     pl_cpu = pl |> Matrix
     res_cpu = map(ib->_measure(rng, view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
+    CI = Base.CartesianIndices(regm)
 
     @inline function kernel(regm, res, pl)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
         if state <= length(regm)
-            k,i,j = GPUArrays.gpu_ind2sub(regm, state)
+            @inbounds k,i,j = CI[state].I
             @inbounds rind = Int(res[j]) + 1
             @inbounds regm[k,i,j] = k==rind ? regm[k,i,j]/CUDAnative.sqrt(pl[k, j]) : T(0)
         end
@@ -83,11 +85,12 @@ function measure!(rst::ResetTo, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLo
     pl_cpu = pl |> Matrix
     res_cpu = map(ib->_measure(rng, view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
+    CI = Base.CartesianIndices(regm)
 
     @inline function kernel(regm, res, pl, val)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
         if state <= length(regm)
-            k,i,j = GPUArrays.gpu_ind2sub(regm, state)
+            @inbounds k,i,j = CI[state].I
             @inbounds rind = Int(res[j]) + 1
             @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDAnative.sqrt(pl[rind, j]))
             CuArrays.sync_threads()
@@ -102,16 +105,19 @@ function measure!(rst::ResetTo, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLo
 end
 
 import Yao.YaoArrayRegister: insert_qubits!, join
-function batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2}
+function YaoBase.batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2}
     res = CuArrays.zeros(promote_type(T1,T2), size(A,1)*size(B, 1), size(A,2)*size(B,2), size(A, 3))
+    CI = Base.CartesianIndices(res)
     @inline function kernel(res, A, B)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        i,j,b = GPUArrays.gpu_ind2sub(res, state)
-        i_A = (i-1) ÷ size(B,1) + 1
-        j_A = (j-1) ÷ size(B,2) + 1
-        i_B = (i-1) % size(B,1) + 1
-        j_B = (j-1) % size(B,2) + 1
-        state <= length(res) && (@inbounds res[state] = A[i_A, j_A, b]*B[i_B, j_B, b])
+        if state <= length(res)
+            @inbounds i,j,b = CI[state].I
+            i_A = (i-1) ÷ size(B,1) + 1
+            j_A = (j-1) ÷ size(B,2) + 1
+            i_B = (i-1) % size(B,1) + 1
+            j_B = (j-1) % size(B,2) + 1
+            (@inbounds res[state] = A[i_A, j_A, b]*B[i_B, j_B, b])
+        end
         return
     end
 
@@ -123,7 +129,7 @@ end
 function join(reg1::GPUReg{B}, reg2::GPUReg{B}) where {B}
     s1 = reg1 |> rank3
     s2 = reg2 |> rank3
-    state = batched_kron(s1, s2)
+    state = YaoBase.batched_kron(s1, s2)
     ArrayReg{B}(copy(reshape(state, size(state, 1), :)))
 end
 

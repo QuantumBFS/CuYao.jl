@@ -87,6 +87,6 @@ end
 @testset "pswap" begin
     ps = put(6, (2,4)=>rot(SWAP, π/2))
     reg = rand_state(6; nbatch=10)
-    @test apply!(reg |> cu, ps) ≈ apply!(reg, ps)
+    @test apply!(reg |> cu, ps) |> cpu ≈ apply!(copy(reg), ps)
     @test apply!(reg |> cu, ps).state isa CuArray
 end
