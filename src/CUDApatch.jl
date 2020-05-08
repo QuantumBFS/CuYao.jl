@@ -44,27 +44,7 @@ bit_count(UInt32(0b11111))
 
 # TODO
 # support norm(view(reshape(A, m, n), :, 1))
-using LinearAlgebra
-import LinearAlgebra: norm
-const CuSubArr{T, N} = Union{CuArray{T, N}, SubArray{T, N, <:CuArray}}
-norm2(A::CuSubArr; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> CUDAnative.sqrt
-
 export piecewise, cudiv
-@inline function cudiv(x::Int)
-    max_threads = 256
-    threads_x = min(max_threads, x)
-    threads_x, ceil(Int, x/threads_x)
-end
-
-# NOTE: the maximum block size is 65535
-@inline function cudiv(x::Int, y::Int)
-    max_threads = 256
-    threads_x = min(max_threads, x)
-    threads_y = min(max_threads ÷ threads_x, y)
-    threads = (threads_x, threads_y)
-    blocks = ceil.(Int, (x, y) ./ threads)
-    threads, blocks
-end
 
 fix_cudiv(A::AbstractVector, firstdim::Int) = cudiv(firstdim)
 fix_cudiv(A::AbstractMatrix, firstdim::Int) = cudiv(firstdim, size(A,2))

@@ -7,11 +7,32 @@ export cpu, cu, GPUReg
 
 cu(reg::ArrayReg{B}) where B = ArrayReg{B}(CuArray(reg.state))
 cpu(reg::ArrayReg{B}) where B = ArrayReg{B}(collect(reg.state))
-const GPUReg{B, T, MT} = ArrayReg{B, T, MT} where MT<:GPUArray
+const GPUReg{B, T, MT} = ArrayReg{B, T, MT} where MT<:CuArray
 
+using LinearAlgebra
+import LinearAlgebra: norm
+const CuSubArr{T, N} = Union{CuArray{T, N}, SubArray{T, N, <:CuArray}}
+
+@inline function cudiv(x::Int)
+    max_threads = 256
+    threads_x = min(max_threads, x)
+    threads_x, ceil(Int, x/threads_x)
+end
+
+# NOTE: the maximum block size is 65535
+@inline function cudiv(x::Int, y::Int)
+    max_threads = 256
+    threads_x = min(max_threads, x)
+    threads_y = min(max_threads ÷ threads_x, y)
+    threads = (threads_x, threads_y)
+    blocks = ceil.(Int, (x, y) ./ threads)
+    threads, blocks
+end
+
+norm2(A::CuSubArr; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> CUDAnative.sqrt
 function batch_normalize!(s::CuSubArr, p::Real=2)
     p!=2 && throw(ArgumentError("p must be 2!"))
-    s./=norm2(s, dims=1)
+    s ./= norm2(s, dims=1)
     s
 end
 

@@ -46,6 +46,7 @@ end
     vn = randn(ComplexF32, N, 333)
 
     for U1 in [mat(H), mat(Y), mat(Z), mat(I2), mat(P0)]
+        @show U1
         @test instruct!(v1 |> CuArray, U1, (3,)) |> Vector ≈ instruct!(v1 |> copy, U1, (3,))
         @test instruct!(vn |> CuArray, U1, (3,)) |> Matrix ≈ instruct!(vn |> copy, U1, (3,))
     end
@@ -77,6 +78,7 @@ end
     vn = randn(ComplexF32, N, 333)
 
     for G in [:X, :Y, :Z, :T, :Tdag, :S, :Sdag]
+        @show G
         @test instruct!(v1 |> CuArray, Val(G), (3,), (4,5), (0, 1)) |> Vector ≈ instruct!(v1 |> copy, Val(G), (3,), (4,5), (0, 1))
         @test instruct!(vn |> CuArray, Val(G), (3,), (4,5), (0, 1)) |> Matrix ≈ instruct!(vn |> copy, Val(G), (3,), (4,5), (0, 1))
         @test instruct!(v1 |> CuArray, Val(G), (3,), (1,), (1,)) |> Vector ≈ instruct!(v1 |> copy, Val(G),(3,), (1,), (1,))

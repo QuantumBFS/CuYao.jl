@@ -8,14 +8,15 @@ using Random
 
 using Yao.YaoArrayRegister
 using GPUArrays, CuArrays, CUDAnative
+using KernelAbstractions
 @reexport using Yao
 
 const Ints = NTuple{<:Any, Int}
 
-include("CUDApatch.jl")
+#include("CUDApatch.jl")
+include("utils.jl")
 include("GPUReg.jl")
 include("gpuapplys.jl")
-#include("gcompile.jl")
 
 function __init__()
     CuArrays.allowscalar(false)
