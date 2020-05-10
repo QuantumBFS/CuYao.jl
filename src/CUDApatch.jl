@@ -90,6 +90,22 @@ function kron(A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1}}}, B::Union{CuA
     res
 end
 
+function kron!(C::CuArray{T3}, A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1}}}, B::Union{CuArray{T2}, Adjoint{<:Any, <:CuArray{T2}}}) where {T1, T2, T3}
+    CI = Base.CartesianIndices(C)
+    @inline function kernel(C, A, B)
+        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        @inbounds inds = CI[state].I
+        inds_A = (inds.-1) .÷ size(B) .+ 1
+        inds_B = (inds.-1) .% size(B) .+ 1
+        state <= length(C) && (@inbounds C[state] = A[inds_A...]*B[inds_B...])
+        return
+    end
+
+    X, Y = cudiv(length(C))
+    @cuda threads=X blocks=Y kernel(C, A, B)
+    C
+end
+
 function getindex(A::CuVector{T}, B::CuArray{<:Integer}) where T
     res = CuArrays.zeros(T, size(B)...)
     @inline function kernel(res, A, B)
