@@ -110,6 +110,9 @@ end
     @test kron(ca, cb) |> Array ≈ kron(a, b)
     @test kron!(cc, ca, cb) |> Array ≈ kron(a,b)
 
+    kron!(c,a,b)
+    @test cc |> Array ≈ c
+
     v = randn(100) |> cu
     inds = [3,5,2,1,7,1]
     @test v[inds] ≈ v[inds |> CuVector]
@@ -120,8 +123,10 @@ end
     b = randn(4,2,5)
     c = zeros(12,8,5)
     ca, cb, cc = cu(a), cu(b), cu(c)
-    kron!(c, a, b)
-    @test batched_kron(ca, cb) |> Array ≈ batched_kron(a, b)
-    @test batched_kron!(cc, ca, cb) |> Array ≈ batched_kron(a,b)
 
+    @test batched_kron(ca, cb) |> Array ≈ batched_kron(a, b)
+    @test batched_kron!(cc, ca, cb) |> Array ≈ batched_kron(a, b)
+
+    batched_kron!(c, a, b)
+    @test cc |> Array ≈ c
 end
