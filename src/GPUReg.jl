@@ -126,6 +126,12 @@ function YaoBase.batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{
     res
 end
 
+"""
+    YaoBase.batched_kron!(C::CuArray{T3, 3}, A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2, T3}
+
+Performs batched Kronecker products in-place on the GPU.
+The results are stored in 'C', overwriting the existing values of 'C'.
+"""
 function YaoBase.batched_kron!(C::CuArray{T3, 3}, A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2, T3}
     CI = Base.CartesianIndices(C)
     @inline function kernel(C, A, B)
