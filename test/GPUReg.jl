@@ -105,10 +105,28 @@ end
 @testset "cuda kron getindex" begin
     a = randn(3,4)
     b = randn(4,2)
-    ca, cb = cu(a), cu(b)
+    c = zeros(12,8)
+    ca, cb, cc = cu(a), cu(b), cu(c)
     @test kron(ca, cb) |> Array ≈ kron(a, b)
+    @test kron!(cc, ca, cb) |> Array ≈ kron(a,b)
+
+    kron!(c,a,b)
+    @test cc |> Array ≈ c
 
     v = randn(100) |> cu
     inds = [3,5,2,1,7,1]
     @test v[inds] ≈ v[inds |> CuVector]
+end
+
+@testset "cuda batched_kron" begin
+    a = randn(3,4,5)
+    b = randn(4,2,5)
+    c = zeros(12,8,5)
+    ca, cb, cc = cu(a), cu(b), cu(c)
+
+    @test batched_kron(ca, cb) |> Array ≈ batched_kron(a, b)
+    @test batched_kron!(cc, ca, cb) |> Array ≈ batched_kron(a, b)
+
+    batched_kron!(c, a, b)
+    @test cc |> Array ≈ c
 end
