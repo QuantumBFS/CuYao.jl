@@ -97,6 +97,7 @@ Computes Kronecker products in-place on the GPU.
 The results are stored in 'C', overwriting the existing values of 'C'.
 """
 function kron!(C::CuArray{T3}, A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1}}}, B::Union{CuArray{T2}, Adjoint{<:Any, <:CuArray{T2}}}) where {T1, T2, T3}
+    @boundscheck (size(C) == (size(A,1)*size(B,1), size(A,2)*size(B,2))) || throw(DimensionMismatch())
     CI = Base.CartesianIndices(C)
     @inline function kernel(C, A, B)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
