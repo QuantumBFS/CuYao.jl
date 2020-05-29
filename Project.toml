@@ -1,6 +1,6 @@
 name = "CuYao"
 uuid = "b48ca7a8-dd42-11e8-2b8e-1b7706800275"
-version = "0.2.1"
+version = "0.2.2"
 
 [deps]
 BitBasis = "50ba71b6-fa0f-514d-ae9a-0916efc90dcf"
@@ -19,7 +19,7 @@ Yao = "5872b779-8223-5990-8dd0-5abbb0748c8c"
 [compat]
 BitBasis = "0.6"
 CUDAnative = "2.6, 3.0"
-CuArrays = "1.5, 2.1"
+CuArrays = "1.5, 2.2"
 GPUArrays = "2.0, 3.0"
 LuxurySparse = "0.5, 0.6"
 Reexport = "0.2"

@@ -129,3 +129,6 @@ end
 function getindex(A::AbstractVector, B::CuArray{<:Integer})
     A[Array(B)]
 end
+
+YaoBlocks.AD.as_scalar(x::CuArray) = Array(x)[]
+
