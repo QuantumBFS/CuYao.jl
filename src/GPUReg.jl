@@ -126,6 +126,34 @@ function YaoBase.batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{
     res
 end
 
+"""
+    YaoBase.batched_kron!(C::CuArray{T3, 3}, A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2, T3}
+
+Performs batched Kronecker products in-place on the GPU.
+The results are stored in 'C', overwriting the existing values of 'C'.
+"""
+function YaoBase.batched_kron!(C::CuArray{T3, 3}, A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2, T3}
+    @boundscheck (size(C) == (size(A,1)*size(B,1), size(A,2)*size(B,2)), size(A,3)) || throw(DimensionMismatch())
+    @boundscheck (size(A,3) == size(B,3) == size(C,3)) || throw(DimensionMismatch())
+    CI = Base.CartesianIndices(C)
+    @inline function kernel(C, A, B)
+        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        if state <= length(C)
+            @inbounds i,j,b = CI[state].I
+            i_A = (i-1) ÷ size(B,1) + 1
+            j_A = (j-1) ÷ size(B,2) + 1
+            i_B = (i-1) % size(B,1) + 1
+            j_B = (j-1) % size(B,2) + 1
+            (@inbounds C[state] = A[i_A, j_A, b]*B[i_B, j_B, b])
+        end
+        return
+    end
+
+    X, Y = cudiv(length(C))
+    @cuda threads=X blocks=Y kernel(C, A, B)
+    C
+end
+
 function join(reg1::GPUReg{B}, reg2::GPUReg{B}) where {B}
     s1 = reg1 |> rank3
     s2 = reg2 |> rank3

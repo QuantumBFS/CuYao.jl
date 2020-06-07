@@ -2,6 +2,7 @@ using CuYao
 using CuArrays, GPUArrays
 using Test
 using CUDAnative
+using YaoBlocks
 
 @testset "isapprox-complex" begin
     ca = CuArray(randn(ComplexF64,3,3))
@@ -28,4 +29,8 @@ end
         @test Array(CUDAnative.pow.(a, Int32(3))) ≈ Array(a).^3
         @test Array(CUDAnative.pow.(a, real(T)(3))) ≈ Array(a).^3
     end
+end
+
+@testset "as_scalar" begin
+    @test YaoBlocks.AD.as_scalar([2.0] |> CuArray) == 2.0
 end
