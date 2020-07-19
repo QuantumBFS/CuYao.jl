@@ -1,7 +1,6 @@
 using CuYao
-using CuArrays, GPUArrays
+using CUDA
 using Test
-using CUDAnative
 using YaoBlocks
 
 @testset "isapprox-complex" begin
@@ -26,8 +25,8 @@ end
 @testset "Complex pow" begin
     for T in [ComplexF64, ComplexF32]
         a = CuArray(randn(T, 4, 4))
-        @test Array(CUDAnative.pow.(a, Int32(3))) ≈ Array(a).^3
-        @test Array(CUDAnative.pow.(a, real(T)(3))) ≈ Array(a).^3
+        @test Array(CUDA.pow.(a, Int32(3))) ≈ Array(a).^3
+        @test Array(CUDA.pow.(a, real(T)(3))) ≈ Array(a).^3
     end
 end
 

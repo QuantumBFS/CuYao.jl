@@ -1,5 +1,5 @@
-#import CuArrays: _cuview, ViewIndex, NonContiguous
-#using GPUArrays: genperm
+#import CUDA: _cuview, ViewIndex, NonContiguous
+#using CUDA: genperm
 # fallback to SubArray when the view is not contiguous
 
 #=
@@ -14,11 +14,11 @@ function LinearAlgebra.permutedims!(dest::GPUArray, src::GPUArray, perm) where N
 end
 =#
 
-import CUDAnative: pow, abs, angle
+import CUDA: pow, abs, angle
 for (RT, CT) in [(:Float64, :ComplexF64), (:Float32, :ComplexF32)]
-    @eval cp2c(d::$RT, a::$RT) = CUDAnative.ComplexF64(d*CUDAnative.cos(a), d*CUDAnative.sin(a))
+    @eval cp2c(d::$RT, a::$RT) = CUDA.Complex(d*CUDA.cos(a), d*CUDA.sin(a))
     for NT in [RT, :Int32]
-        @eval CUDAnative.pow(z::$CT, n::$NT) = CUDAnative.ComplexF64((CUDAnative.pow(CUDAnative.abs(z), n)*CUDAnative.cos(n*CUDAnative.angle(z))), (CUDAnative.pow(CUDAnative.abs(z), n)*CUDAnative.sin(n*CUDAnative.angle(z))))
+        @eval CUDA.pow(z::$CT, n::$NT) = CUDA.Complex((CUDA.pow(CUDA.abs(z), n)*CUDA.cos(n*CUDA.angle(z))), (CUDA.pow(CUDA.abs(z), n)*CUDA.sin(n*CUDA.angle(z))))
     end
 end
 
@@ -47,7 +47,7 @@ bit_count(UInt32(0b11111))
 using LinearAlgebra
 import LinearAlgebra: norm
 const CuSubArr{T, N} = Union{CuArray{T, N}, SubArray{T, N, <:CuArray}}
-norm2(A::CuSubArr; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> CUDAnative.sqrt
+norm2(A::CuSubArr; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> CUDA.sqrt
 
 export piecewise, cudiv
 @inline function cudiv(x::Int)
@@ -74,7 +74,7 @@ piecewise(state::AbstractMatrix, inds) = @inbounds view(state,:,inds[2])
 
 import Base: kron, getindex
 function kron(A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1}}}, B::Union{CuArray{T2}, Adjoint{<:Any, <:CuArray{T2}}}) where {T1, T2}
-    res = CuArrays.zeros(promote_type(T1,T2), (size(A).*size(B))...)
+    res = CUDA.zeros(promote_type(T1,T2), (size(A).*size(B))...)
     CI = Base.CartesianIndices(res)
     @inline function kernel(res, A, B)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
@@ -114,7 +114,7 @@ function kron!(C::CuArray{T3}, A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1
 end
 
 function getindex(A::CuVector{T}, B::CuArray{<:Integer}) where T
-    res = CuArrays.zeros(T, size(B)...)
+    res = CUDA.zeros(T, size(B)...)
     @inline function kernel(res, A, B)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
         state <= length(res) && (@inbounds res[state] = A[B[state]])
@@ -131,4 +131,3 @@ function getindex(A::AbstractVector, B::CuArray{<:Integer})
 end
 
 YaoBlocks.AD.as_scalar(x::CuArray) = Array(x)[]
-

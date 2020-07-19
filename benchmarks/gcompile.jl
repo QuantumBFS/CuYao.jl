@@ -1,5 +1,5 @@
 using Yao, Yao.Boost, Yao.Intrinsics, StaticArrays, Yao.Blocks
-using CuYao, CuArrays, CUDAnative, GPUArrays
+using CuYao, CUDA
 using BenchmarkTools, Profile
 
 nbit = 12

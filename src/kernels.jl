@@ -22,17 +22,21 @@ end
         u1rows!(piecewise(state, inds), i, i+step, a, b, c, d)
     end
 end
-u1_kernel(nbit::Int, U1::SDSparseMatrixCSC, ibit::Int) = u1_kernel(nbit, U1|>Matrix, ibit)
+function u1_kernel(nbit::Int, U1::SDSparseMatrixCSC, ibit::Int)
+    u1_kernel(nbit, U1|>Matrix, ibit)
+end
 
 @inline function u1_kernel(nbit::Int, U1::SDPermMatrix, ibit::Int)
-    U1.perm[1] == 1 && return u1_kernel(nbit, Diagonal(U1.vals), ibit)
+    if U1.perm[1] == 1
+        return u1_kernel(nbit, Diagonal(U1.vals), ibit)
+    end
 
     mask = bmask(ibit)
     b, c = U1.vals[1], U1.vals[2]
     step = 1<<(ibit-1)
     configs = itercontrol(nbit, [ibit], [0])
 
-    length(configs), @inline function kernel(state, inds)
+    1<<(nbit-1), function kernel(state, inds)
         x = @inbounds configs[inds[1]] + 1
         swaprows!(piecewise(state, inds), x, x+step, c, b)
     end
@@ -107,7 +111,7 @@ end
     mask = bmask(Int32, bits...)
     1<<nbit,@inline function kernel(state, inds)
         i = inds[1]
-        piecewise(state, inds)[i] *= CUDAnative.pow(d, bit_count(Int32(i-1)&mask))
+        piecewise(state, inds)[i] *= CUDA.pow(d, bit_count(Int32(i-1)&mask))
         return
     end
 end
