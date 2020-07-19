@@ -5,7 +5,7 @@ using StatsBase: Weights
 using BitBasis
 using StaticArrays
 using QuAlgorithmZoo
-using CuArrays
+using CUDA
 using YaoExtensions
 using YaoExtensions: NDWeights
 

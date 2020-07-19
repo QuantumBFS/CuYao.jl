@@ -1,4 +1,4 @@
-import CuArrays: cu
+import CUDA: cu
 import Yao.YaoArrayRegister: _measure, measure, measure!, measure_collapseto!, measure_remove!
 import Yao.YaoBase: batch_normalize!
 import Yao: expect
@@ -46,7 +46,7 @@ function measure!(::RemoveMeasured, ::ComputationalBasis, reg::GPUReg{B}, ::AllL
         if state <= length(nregm)
             @inbounds i,j = CI[state].I
             @inbounds r = Int(res[j])+1
-            @inbounds nregm[i,j] = regm[r,i,j]/CUDAnative.sqrt(pl[r, j])
+            @inbounds nregm[i,j] = regm[r,i,j]/CUDA.sqrt(pl[r, j])
         end
         return
     end
@@ -69,7 +69,7 @@ function measure!(::NoPostProcess, ::ComputationalBasis, reg::GPUReg{B, T}, ::Al
         if state <= length(regm)
             @inbounds k,i,j = CI[state].I
             @inbounds rind = Int(res[j]) + 1
-            @inbounds regm[k,i,j] = k==rind ? regm[k,i,j]/CUDAnative.sqrt(pl[k, j]) : T(0)
+            @inbounds regm[k,i,j] = k==rind ? regm[k,i,j]/CUDA.sqrt(pl[k, j]) : T(0)
         end
         return
     end
@@ -92,8 +92,8 @@ function measure!(rst::ResetTo, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLo
         if state <= length(regm)
             @inbounds k,i,j = CI[state].I
             @inbounds rind = Int(res[j]) + 1
-            @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDAnative.sqrt(pl[rind, j]))
-            CuArrays.sync_threads()
+            @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDA.sqrt(pl[rind, j]))
+            CUDA.sync_threads()
             @inbounds k!=val+1 && (regm[k,i,j] = 0)
         end
         return
@@ -106,7 +106,7 @@ end
 
 import Yao.YaoArrayRegister: insert_qubits!, join
 function YaoBase.batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2}
-    res = CuArrays.zeros(promote_type(T1,T2), size(A,1)*size(B, 1), size(A,2)*size(B,2), size(A, 3))
+    res = CUDA.zeros(promote_type(T1,T2), size(A,1)*size(B, 1), size(A,2)*size(B,2), size(A, 3))
     CI = Base.CartesianIndices(res)
     @inline function kernel(res, A, B)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
@@ -133,7 +133,7 @@ Performs batched Kronecker products in-place on the GPU.
 The results are stored in 'C', overwriting the existing values of 'C'.
 """
 function YaoBase.batched_kron!(C::CuArray{T3, 3}, A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2, T3}
-    @boundscheck (size(C) == (size(A,1)*size(B,1), size(A,2)*size(B,2)), size(A,3)) || throw(DimensionMismatch())
+    @boundscheck (size(C) == (size(A,1)*size(B,1), size(A,2)*size(B,2), size(A,3))) || throw(DimensionMismatch())
     @boundscheck (size(A,3) == size(B,3) == size(C,3)) || throw(DimensionMismatch())
     CI = Base.CartesianIndices(C)
     @inline function kernel(C, A, B)

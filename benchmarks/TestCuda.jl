@@ -1,4 +1,4 @@
-using CuArrays, CUDAnative
+using CUDA
 using LinearAlgebra
 using BenchmarkTools
 

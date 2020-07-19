@@ -5,8 +5,8 @@ using LinearAlgebra
 using BitBasis
 using Statistics: mean
 using StaticArrays
-using CuArrays
-CuArrays.allowscalar(false)
+using CUDA
+CUDA.allowscalar(false)
 
 @testset "basics" begin
     a = randn(ComplexF64, 50, 20)

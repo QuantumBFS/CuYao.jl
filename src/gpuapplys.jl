@@ -110,6 +110,6 @@ end
 using Yao.YaoBlocks
 function YaoBlocks._apply_fallback!(r::GPUReg{B,T}, b::AbstractBlock) where {B,T}
     YaoBlocks._check_size(r, b)
-    r.state .= CuArrays.adapt(CuArray{T}, mat(T, b)) * r.state
+    r.state .= CUDA.adapt(CuArray{T}, mat(T, b)) * r.state
     return r
 end

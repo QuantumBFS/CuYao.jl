@@ -7,7 +7,8 @@ import TupleTools
 using Random
 
 using Yao.YaoArrayRegister
-using GPUArrays, CuArrays, CUDAnative
+using CUDA
+import Yao: kron!
 @reexport using Yao
 
 const Ints = NTuple{<:Any, Int}
@@ -18,7 +19,7 @@ include("gpuapplys.jl")
 #include("gcompile.jl")
 
 function __init__()
-    CuArrays.allowscalar(false)
+    CUDA.allowscalar(false)
 end
 
 end
