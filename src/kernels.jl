@@ -27,16 +27,11 @@ function u1_kernel(nbit::Int, U1::SDSparseMatrixCSC, ibit::Int)
 end
 
 @inline function u1_kernel(nbit::Int, U1::SDPermMatrix, ibit::Int)
-    if U1.perm[1] == 1
-        return u1_kernel(nbit, Diagonal(U1.vals), ibit)
-    end
-
-    mask = bmask(ibit)
-    b, c = U1.vals[1], U1.vals[2]
+    b, c = U1.vals
     step = 1<<(ibit-1)
     configs = itercontrol(nbit, [ibit], [0])
 
-    1<<(nbit-1), function kernel(state, inds)
+    length(configs), function kernel(state, inds)
         x = @inbounds configs[inds[1]] + 1
         swaprows!(piecewise(state, inds), x, x+step, c, b)
     end
