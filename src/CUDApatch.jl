@@ -46,8 +46,7 @@ bit_count(UInt32(0b11111))
 # support norm(view(reshape(A, m, n), :, 1))
 using LinearAlgebra
 import LinearAlgebra: norm
-const CuSubArr{T, N} = Union{CuArray{T, N}, SubArray{T, N, <:CuArray}}
-norm2(A::CuSubArr; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> CUDA.sqrt
+norm2(A::DenseCuArray; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> CUDA.sqrt
 
 export piecewise, cudiv
 @inline function cudiv(x::Int)
@@ -73,7 +72,7 @@ piecewise(state::AbstractVector, inds) = state
 piecewise(state::AbstractMatrix, inds) = @inbounds view(state,:,inds[2])
 
 import Base: kron, getindex
-function kron(A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1}}}, B::Union{CuArray{T2}, Adjoint{<:Any, <:CuArray{T2}}}) where {T1, T2}
+function kron(A::DenseCuArray{T1}, B::DenseCuArray{T2}) where {T1, T2}
     res = CUDA.zeros(promote_type(T1,T2), (size(A).*size(B))...)
     CI = Base.CartesianIndices(res)
     @inline function kernel(res, A, B)
@@ -91,12 +90,12 @@ function kron(A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1}}}, B::Union{CuA
 end
 
 """
-    kron!(C::CuArray{T3}, A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1}}}, B::Union{CuArray{T2}, Adjoint{<:Any, <:CuArray{T2}}}) where {T1 ,T2, T3}
+    kron!(C::CuArray, A, B)
 
 Computes Kronecker products in-place on the GPU.
 The results are stored in 'C', overwriting the existing values of 'C'.
 """
-function kron!(C::CuArray{T3}, A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1}}}, B::Union{CuArray{T2}, Adjoint{<:Any, <:CuArray{T2}}}) where {T1, T2, T3}
+function kron!(C::CuArray{T3}, A::DenseCuArray{T1}, B::DenseCuArray{T2}) where {T1, T2, T3}
     @boundscheck (size(C) == (size(A,1)*size(B,1), size(A,2)*size(B,2))) || throw(DimensionMismatch())
     CI = Base.CartesianIndices(C)
     @inline function kernel(C, A, B)
@@ -113,7 +112,7 @@ function kron!(C::CuArray{T3}, A::Union{CuArray{T1}, Adjoint{<:Any, <:CuArray{T1
     C
 end
 
-function getindex(A::CuVector{T}, B::CuArray{<:Integer}) where T
+function getindex(A::DenseCuVector{T}, B::DenseCuArray{<:Integer}) where T
     res = CUDA.zeros(T, size(B)...)
     @inline function kernel(res, A, B)
         state = (blockIdx().x-1) * blockDim().x + threadIdx().x
@@ -126,8 +125,8 @@ function getindex(A::CuVector{T}, B::CuArray{<:Integer}) where T
     res
 end
 
-function getindex(A::AbstractVector, B::CuArray{<:Integer})
+function getindex(A::AbstractVector, B::DenseCuArray{<:Integer})
     A[Array(B)]
 end
 
-YaoBlocks.AD.as_scalar(x::CuArray) = Array(x)[]
+YaoBlocks.AD.as_scalar(x::DenseCuArray) = Array(x)[]

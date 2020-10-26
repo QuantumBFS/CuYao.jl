@@ -9,7 +9,7 @@ cu(reg::ArrayReg{B}) where B = ArrayReg{B}(CuArray(reg.state))
 cpu(reg::ArrayReg{B}) where B = ArrayReg{B}(collect(reg.state))
 const GPUReg{B, T, MT} = ArrayReg{B, T, MT} where MT<:CuArray
 
-function batch_normalize!(s::CuSubArr, p::Real=2)
+function batch_normalize!(s::DenseCuArray, p::Real=2)
     p!=2 && throw(ArgumentError("p must be 2!"))
     s./=norm2(s, dims=1)
     s
@@ -105,7 +105,7 @@ function measure!(rst::ResetTo, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLo
 end
 
 import Yao.YaoArrayRegister: insert_qubits!, join
-function YaoBase.batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2}
+function YaoBase.batched_kron(A::DenseCuArray{T1}, B::DenseCuArray{T2}) where {T1 ,T2}
     res = CUDA.zeros(promote_type(T1,T2), size(A,1)*size(B, 1), size(A,2)*size(B,2), size(A, 3))
     CI = Base.CartesianIndices(res)
     @inline function kernel(res, A, B)
@@ -127,12 +127,12 @@ function YaoBase.batched_kron(A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{
 end
 
 """
-    YaoBase.batched_kron!(C::CuArray{T3, 3}, A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2, T3}
+    YaoBase.batched_kron!(C::CuArray, A, B)
 
 Performs batched Kronecker products in-place on the GPU.
 The results are stored in 'C', overwriting the existing values of 'C'.
 """
-function YaoBase.batched_kron!(C::CuArray{T3, 3}, A::Union{CuArray{T1, 3}, Adjoint{<:Any, <:CuArray{T1, 3}}}, B::Union{CuArray{T2, 3}, Adjoint{<:Any, <:CuArray{T2, 3}}}) where {T1 ,T2, T3}
+function YaoBase.batched_kron!(C::CuArray{T3, 3}, A::DenseCuArray, B::DenseCuArray) where {T1 ,T2, T3}
     @boundscheck (size(C) == (size(A,1)*size(B,1), size(A,2)*size(B,2), size(A,3))) || throw(DimensionMismatch())
     @boundscheck (size(A,3) == size(B,3) == size(C,3)) || throw(DimensionMismatch())
     CI = Base.CartesianIndices(C)
