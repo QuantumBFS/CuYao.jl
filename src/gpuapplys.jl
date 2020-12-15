@@ -113,3 +113,15 @@ function YaoBlocks._apply_fallback!(r::GPUReg{B,T}, b::AbstractBlock) where {B,T
     r.state .= CUDA.adapt(CuArray{T}, mat(T, b)) * r.state
     return r
 end
+
+for RG in [:Rx, :Ry, :Rz]
+    @eval function instruct!(
+            state::DenseCuVecOrMat{T},
+            ::Val{$(QuoteNode(RG))},
+            locs::Tuple{Int},
+            theta::Number
+        ) where {T, N}
+        YaoArrayRegister.instruct!(state, Val($(QuoteNode(RG))), locs, (), (), theta)
+        return state
+    end
+end

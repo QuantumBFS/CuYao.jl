@@ -90,3 +90,13 @@ end
     @test apply!(reg |> cu, ps) |> cpu ≈ apply!(copy(reg), ps)
     @test apply!(reg |> cu, ps).state isa CuArray
 end
+
+@testset "regression test: Rx, Ry, Rz, CPHASE" begin
+    Random.seed!(3)
+    nbit = 6
+    for ps in [put(6, (2,)=>Rx(π/2)), put(6, 2=>Ry(0.5)),  put(6, 2=>Rz(0.4))]
+        reg = rand_state(6; nbatch=10)
+        @test apply!(reg |> cu, ps) |> cpu ≈ apply!(copy(reg), ps)
+        @test apply!(reg |> cu, ps).state isa CuArray
+    end
+end
