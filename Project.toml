@@ -19,10 +19,10 @@ BitBasis = "0.7"
 CUDA = "2.0"
 LuxurySparse = "0.6"
 Reexport = "0.2, 1.0"
-StaticArrays = "0.12"
+StaticArrays = "0.12, 1.0"
 StatsBase = "0.33"
 TupleTools = "1"
-Yao = "0.7, 0.6"
+Yao = "0.6, 0.7"
 julia = "1"
 
 [extras]
