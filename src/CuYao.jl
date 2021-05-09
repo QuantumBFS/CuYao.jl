@@ -8,7 +8,6 @@ using Random
 
 using Yao.YaoArrayRegister
 using CUDA
-import Yao: kron!
 @reexport using Yao
 
 const Ints = NTuple{<:Any, Int}

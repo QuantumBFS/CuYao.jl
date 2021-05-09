@@ -106,7 +106,7 @@ end
     mask = bmask(Int32, bits...)
     1<<nbit,@inline function kernel(state, inds)
         i = inds[1]
-        piecewise(state, inds)[i] *= CUDA.pow(d, bit_count(Int32(i-1)&mask))
+        piecewise(state, inds)[i] *= d ^ bit_count(Int32(i-1)&mask)
         return
     end
 end

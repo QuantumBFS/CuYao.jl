@@ -108,9 +108,9 @@ end
     c = zeros(12,8)
     ca, cb, cc = cu(a), cu(b), cu(c)
     @test kron(ca, cb) |> Array ≈ kron(a, b)
-    @test kron!(cc, ca, cb) |> Array ≈ kron(a,b)
+    @test Yao.YaoBase.kron!(cc, ca, cb) |> Array ≈ kron(a,b)
 
-    kron!(c,a,b)
+    Yao.YaoBase.kron!(c,a,b)
     @test cc |> Array ≈ c
 
     v = randn(100) |> cu
