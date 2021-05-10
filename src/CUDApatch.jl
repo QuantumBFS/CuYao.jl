@@ -1,27 +1,3 @@
-#import CUDA: _cuview, ViewIndex, NonContiguous
-#using CUDA: genperm
-# fallback to SubArray when the view is not contiguous
-
-#=
-function LinearAlgebra.permutedims!(dest::GPUArray, src::GPUArray, perm) where N
-    perm isa Tuple || (perm = Tuple(perm))
-    gpu_call(dest, (dest, src, perm)) do state, dest, src, perm
-        I = @cartesianidx src state
-        @inbounds dest[genperm(I, perm)...] = src[I...]
-        return
-    end
-    return dest
-end
-=#
-
-#import CUDA: pow, abs, angle
-#for (RT, CT) in [(:Float64, :ComplexF64), (:Float32, :ComplexF32)]
-#    @eval cp2c(d::$RT, a::$RT) = CUDA.Complex(d*CUDA.cos(a), d*CUDA.sin(a))
-#    for NT in [RT, :Int32]
-#        @eval CUDA.pow(z::$CT, n::$NT) = CUDA.Complex((CUDA.pow(CUDA.abs(z), n)*CUDA.cos(n*CUDA.angle(z))), (CUDA.pow(CUDA.abs(z), n)*CUDA.sin(n*CUDA.angle(z))))
-#    end
-#end
-
 @inline function bit_count(x::UInt32)
     x = ((x >> 1) & 0b01010101010101010101010101010101) + (x & 0b01010101010101010101010101010101)
     x = ((x >> 2) & 0b00110011001100110011001100110011) + (x & 0b00110011001100110011001100110011)
