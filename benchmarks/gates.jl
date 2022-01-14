@@ -13,6 +13,7 @@ creg = reg |> cu
 
 reg = rand_state(20)
 creg = reg |> cu
-g = swap(12, 7, 2)
+g = swap(20, 7, 2)
+g = put(20, (7, 2)=>matblock(rand_unitary(4)))
 @benchmark reg |> g
 @benchmark CUDA.@sync creg |> g

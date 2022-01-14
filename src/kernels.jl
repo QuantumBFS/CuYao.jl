@@ -23,7 +23,7 @@ prod2(x::NTuple{1}) = x[1]
     len, @inline function kernel(ctx, state)
         inds = @idx replace_first(size(state), len)
         x = @inbounds configs[inds[1]]
-        unrows!(piecewise(state, inds), x .+ locs_raw, U)
+        @inbounds unrows!(piecewise(state, inds), x .+ locs_raw, U)
         return
     end
 end
@@ -37,7 +37,7 @@ end
     len, @inline function kernel(ctx, state)
         inds = @idx replace_first(size(state), len)
         i = @inbounds configs[inds[1]]+1
-        u1rows!(piecewise(state, inds), i, i+step, a, b, c, d)
+        @inbounds u1rows!(piecewise(state, inds), i, i+step, a, b, c, d)
         return
     end
 end
@@ -54,7 +54,7 @@ end
     len, function kernel(ctx, state)
         inds = @idx replace_first(size(state), len)
         x = @inbounds configs[inds[1]] + 1
-        swaprows!(piecewise(state, inds), x, x+step, c, b)
+        @inbounds swaprows!(piecewise(state, inds), x, x+step, c, b)
         return
     end
 end
@@ -84,7 +84,7 @@ cx_kernel(nbit::Int, cbits, cvals, loc::Int) = cx_kernel(nbit::Int, cbits, cvals
     len, @inline function kernel(ctx, state)
         inds = @idx replace_first(size(state), len)
         b = @inbounds configs[inds[1]]
-        swaprows!(piecewise(state, inds), b+1, flip(b, mask) + 1)
+        @inbounds swaprows!(piecewise(state, inds), b+1, flip(b, mask) + 1)
         return
     end
 end
@@ -103,7 +103,7 @@ end
         piecewise(state, inds)[x+1] *= e
         piecewise(state, inds)[x⊻mask12+1] *= e
         y = x ⊻ mask2
-        u1rows!(piecewise(state, inds), y+1, y⊻mask12+1, a, b_, c, d)
+        @inbounds u1rows!(piecewise(state, inds), y+1, y⊻mask12+1, a, b_, c, d)
         return
     end
 end
@@ -120,7 +120,7 @@ end
         i_ = flip(b, mask) + 1
         factor1 = count_ones(b&mask)%2 == 1 ? -factor : factor
         factor2 = factor1*bit_parity
-        swaprows!(piecewise(state, inds), b+1, i_, factor2, factor1)
+        @inbounds swaprows!(piecewise(state, inds), b+1, i_, factor2, factor1)
         return
     end
 end
@@ -163,7 +163,7 @@ end
     len, @inline function kernel(ctx, state)
         inds = @idx replace_first(size(state), len)
         b = @inbounds configs[inds[1]]
-        swaprows!(piecewise(state, inds), b+1, flip(b, mask) + 1, im, -im)
+        @inbounds swaprows!(piecewise(state, inds), b+1, flip(b, mask) + 1, im, -im)
         return
     end
 end
