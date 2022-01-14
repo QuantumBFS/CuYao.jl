@@ -83,19 +83,6 @@ end
     @test size(res) == (32,)
     @test res2 == res
 
-    # measure! and reset
-    reg2 = reg |> copy
-    res = measure!(ResetTo(0), op, reg2, 2:6)
-    reg2 |> repeat(8, H, 2:6)
-    res2 = measure!(ResetTo(0), op, reg2, 2:6)
-    @test size(res) == (32,) == size(res2)
-    @test all(res2 .== 1)
-
-    # measure! and remove
-    reg2 = reg |> copy
-    res = measure!(RemoveMeasured(), op, reg2, 2:6)
-    @test size(res) == (32,)
-
     reg = repeat(ArrayReg([1,-1+0im]/sqrt(2.0)), 10) |> cu
     @test measure!(X, reg) |> mean ≈ -1
     reg = repeat(ArrayReg([1.0,0+0im]), 1000)
