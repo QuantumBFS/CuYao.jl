@@ -13,7 +13,6 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 TupleTools = "9d95972d-f1c8-5527-a6e0-b4b365fa01f6"
 Yao = "5872b779-8223-5990-8dd0-5abbb0748c8c"
-YaoArrayRegister = "e600142f-9330-5003-8abb-0ebd767abc51"
 
 [compat]
 BitBasis = "0.7"
