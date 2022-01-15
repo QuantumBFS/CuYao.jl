@@ -1,6 +1,14 @@
-using CUDA
+using CUDA, CuYao, Test
 CUDA.allowscalar(false)
-include("CUDApatch.jl")
-include("GPUReg.jl")
-include("gpuapplys.jl")
-#include("gcompile.jl")
+
+@testset "CUDA patch" begin
+    include("CUDApatch.jl")
+end
+
+@testset "GPU reg" begin
+    include("GPUReg.jl")
+end
+
+@testset "gpu applies" begin
+    include("gpuapplys.jl")
+end

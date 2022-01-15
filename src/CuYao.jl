@@ -15,7 +15,6 @@ const Ints = NTuple{<:Any, Int}
 include("CUDApatch.jl")
 include("GPUReg.jl")
 include("gpuapplys.jl")
-#include("gcompile.jl")
 
 function __init__()
     CUDA.allowscalar(false)

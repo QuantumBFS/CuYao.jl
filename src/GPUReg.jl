@@ -1,6 +1,7 @@
 import CUDA: cu
 import Yao.YaoArrayRegister: _measure, measure, measure!, measure_collapseto!, measure_remove!
 import Yao.YaoBase: batch_normalize!
+import Yao.YaoBlocks: BlockedBasis, nblocks, subblock
 import Yao: expect
 
 export cpu, cu, GPUReg
@@ -41,17 +42,14 @@ function measure!(::RemoveMeasured, ::ComputationalBasis, reg::GPUReg{B}, ::AllL
     res_cpu = map(ib->_measure(rng, view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
     CI = Base.CartesianIndices(nregm)
-    @inline function kernel(nregm, regm, res, pl)
-        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        if state <= length(nregm)
-            @inbounds i,j = CI[state].I
-            @inbounds r = Int(res[j])+1
-            @inbounds nregm[i,j] = regm[r,i,j]/CUDA.sqrt(pl[r, j])
-        end
+    @inline function kernel(ctx, nregm, regm, res, pl)
+        state = @linearidx nregm
+        @inbounds i,j = CI[state].I
+        @inbounds r = Int(res[j])+1
+        @inbounds nregm[i,j] = regm[r,i,j]/CUDA.sqrt(pl[r, j])
         return
     end
-    X, Y = cudiv(length(nregm))
-    @cuda threads=X blocks=Y kernel(nregm, regm, res, pl)
+    gpu_call(kernel, nregm, regm, res, pl)
     reg.state = reshape(nregm,1,:)
     B == 1 ? Array(res)[] : res
 end
@@ -64,19 +62,51 @@ function measure!(::NoPostProcess, ::ComputationalBasis, reg::GPUReg{B, T}, ::Al
     res = CuArray(res_cpu)
     CI = Base.CartesianIndices(regm)
 
-    @inline function kernel(regm, res, pl)
-        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        if state <= length(regm)
-            @inbounds k,i,j = CI[state].I
-            @inbounds rind = Int(res[j]) + 1
-            @inbounds regm[k,i,j] = k==rind ? regm[k,i,j]/CUDA.sqrt(pl[k, j]) : T(0)
-        end
+    @inline function kernel(ctx, regm, res, pl)
+        state = @linearidx regm
+        @inbounds k,i,j = CI[state].I
+        @inbounds rind = Int(res[j]) + 1
+        @inbounds regm[k,i,j] = k==rind ? regm[k,i,j]/CUDA.sqrt(pl[k, j]) : T(0)
         return
     end
-
-    X, Y = cudiv(length(regm))
-    @cuda threads=X blocks=Y kernel(regm, res, pl)
+    gpu_call(kernel, regm, res, pl)
     B == 1 ? Array(res)[] : res
+end
+
+function YaoBase.measure!(
+    ::NoPostProcess,
+    bb::BlockedBasis,
+    reg::GPUReg{B,T},
+    ::AllLocs;
+    rng::AbstractRNG = Random.GLOBAL_RNG,
+) where {B,T}
+    state = @inbounds (reg|>rank3)[bb.perm, :, :]  # permute to make eigen values sorted
+    pl = dropdims(mapreduce(abs2, +, state, dims=2), dims=2)
+    pl_cpu = pl |> Matrix
+    pl_block = zeros(eltype(pl), nblocks(bb), B)
+    @inbounds for ib = 1:B
+        for i = 1:nblocks(bb)
+            for k in subblock(bb, i)
+                pl_block[i, ib] += pl_cpu[k, ib]
+            end
+        end
+    end
+    # perform measurements on CPU
+    res_cpu = Vector{Int}(undef, B)
+    @inbounds @views for ib = 1:B
+        ires = sample(rng, 1:nblocks(bb), Weights(pl_block[:, ib]))
+        # notice ires is `BitStr` type, can be use as indices directly.
+        range = subblock(bb, ires)
+        state[range, :, ib] ./= sqrt(pl_block[ires, ib])
+        state[1:range.start-1, :, ib] .= zero(T)
+        state[range.stop+1:size(state, 1), :, ib] .= zero(T)
+        res_cpu[ib] = ires
+    end
+    # undo permute and assign back
+    _state = reshape(state, 1 << nactive(reg), :)
+    rstate = reshape(reg.state, 1 << nactive(reg), :)
+    @inbounds rstate[bb.perm, :] .= _state
+    return B == 1 ? bb.values[res_cpu[]] : CuArray(bb.values[res_cpu])
 end
 
 function measure!(rst::ResetTo, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where {B, T}
@@ -87,20 +117,17 @@ function measure!(rst::ResetTo, ::ComputationalBasis, reg::GPUReg{B, T}, ::AllLo
     res = CuArray(res_cpu)
     CI = Base.CartesianIndices(regm)
 
-    @inline function kernel(regm, res, pl, val)
-        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        if state <= length(regm)
-            @inbounds k,i,j = CI[state].I
-            @inbounds rind = Int(res[j]) + 1
-            @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDA.sqrt(pl[rind, j]))
-            CUDA.sync_threads()
-            @inbounds k!=val+1 && (regm[k,i,j] = 0)
-        end
+    @inline function kernel(ctx, regm, res, pl, val)
+        state = @linearidx regm
+        @inbounds k,i,j = CI[state].I
+        @inbounds rind = Int(res[j]) + 1
+        @inbounds k==val+1 && (regm[k,i,j] = regm[rind,i,j]/CUDA.sqrt(pl[rind, j]))
+        CUDA.sync_threads()
+        @inbounds k!=val+1 && (regm[k,i,j] = 0)
         return
     end
 
-    X, Y = cudiv(length(regm))
-    @cuda threads=X blocks=Y kernel(regm, res, pl, rst.x)
+    gpu_call(kernel, regm, res, pl, rst.x)
     B == 1 ? Array(res)[] : res
 end
 
@@ -108,21 +135,16 @@ import Yao.YaoArrayRegister: insert_qubits!, join
 function YaoBase.batched_kron(A::DenseCuArray{T1}, B::DenseCuArray{T2}) where {T1 ,T2}
     res = CUDA.zeros(promote_type(T1,T2), size(A,1)*size(B, 1), size(A,2)*size(B,2), size(A, 3))
     CI = Base.CartesianIndices(res)
-    @inline function kernel(res, A, B)
-        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        if state <= length(res)
-            @inbounds i,j,b = CI[state].I
-            i_A = (i-1) ÷ size(B,1) + 1
-            j_A = (j-1) ÷ size(B,2) + 1
-            i_B = (i-1) % size(B,1) + 1
-            j_B = (j-1) % size(B,2) + 1
-            (@inbounds res[state] = A[i_A, j_A, b]*B[i_B, j_B, b])
-        end
+    @inline function kernel(ctx, res, A, B)
+        state = @linearidx res
+        @inbounds i,j,b = CI[state].I
+        i_A, i_B = divrem((i-1), size(B,1))
+        j_A, j_B = divrem((j-1), size(B,2))
+        @inbounds res[state] = A[i_A+1, j_A+1, b]*B[i_B+1, j_B+1, b]
         return
     end
 
-    X, Y = cudiv(length(res))
-    @cuda threads=X blocks=Y kernel(res, A, B)
+    gpu_call(kernel, res, A, B)
     res
 end
 
@@ -136,21 +158,16 @@ function YaoBase.batched_kron!(C::CuArray{T3, 3}, A::DenseCuArray, B::DenseCuArr
     @boundscheck (size(C) == (size(A,1)*size(B,1), size(A,2)*size(B,2), size(A,3))) || throw(DimensionMismatch())
     @boundscheck (size(A,3) == size(B,3) == size(C,3)) || throw(DimensionMismatch())
     CI = Base.CartesianIndices(C)
-    @inline function kernel(C, A, B)
-        state = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        if state <= length(C)
-            @inbounds i,j,b = CI[state].I
-            i_A = (i-1) ÷ size(B,1) + 1
-            j_A = (j-1) ÷ size(B,2) + 1
-            i_B = (i-1) % size(B,1) + 1
-            j_B = (j-1) % size(B,2) + 1
-            (@inbounds C[state] = A[i_A, j_A, b]*B[i_B, j_B, b])
-        end
+    @inline function kernel(ctx, C, A, B)
+        state = @linearidx C
+        @inbounds i,j,b = CI[state].I
+        i_A, i_B = divrem((i-1), size(B,1))
+        j_A, j_B = divrem((j-1), size(B,2))
+        @inbounds C[state] = A[i_A+1, j_A+1, b]*B[i_B+1, j_B+1, b]
         return
     end
 
-    X, Y = cudiv(length(C))
-    @cuda threads=X blocks=Y kernel(C, A, B)
+    gpu_call(kernel, C, A, B)
     C
 end
 

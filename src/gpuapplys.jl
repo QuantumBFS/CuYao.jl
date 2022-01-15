@@ -12,8 +12,7 @@ function instruct!(state::DenseCuVecOrMat, U0::AbstractMatrix, locs::NTuple{M, I
     # reorder a unirary matrix.
     D, kf = un_kernel(log2dim1(state), clocs, cvals, U0, locs)
 
-    X, Y = fix_cudiv(state, D)
-    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    gpu_call(kf, state; elements=D*size(state,2))
     state
 end
 instruct!(state::DenseCuVecOrMat, U0::IMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = state
@@ -23,8 +22,7 @@ instruct!(state::DenseCuVecOrMat, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}, c
 for MT in [:SDDiagonal, :SDPermMatrix, :AbstractMatrix, :SDSparseMatrixCSC]
     @eval function instruct!(state::DenseCuVecOrMat, U1::$MT, ibit::Tuple{Int})
         D,kf = u1_kernel(log2dim1(state), U1, ibit...)
-        X, Y = fix_cudiv(state,D)
-        @cuda threads=X blocks=Y simple_kernel(kf, state)
+        gpu_call(kf, state; elements=D*size(state,2))
         state
     end
 end
@@ -40,16 +38,14 @@ for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
         length(locs) == 0 && return state
 
         D, kf = $KERNEL(log2dim1(state), locs)
-        X, Y = fix_cudiv(state, D)
-        @cuda threads=X blocks=Y simple_kernel(kf, state)
+        gpu_call(kf, state; elements=D*size(state,2))
         state
     end
 
     CKERNEL = Symbol(:c, KERNEL)
     @eval function _instruct!(state::DenseCuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
         D,kf = $CKERNEL(log2dim1(state), clocs, cvals, loc...)
-        X, Y = fix_cudiv(state,D)
-        @cuda threads=X blocks=Y simple_kernel(kf, state)
+        gpu_call(kf, state; elements=D*size(state,2))
         state
     end
 
@@ -79,12 +75,8 @@ function instruct!(state::DenseCuVecOrMat, ::Val{:SWAP}, locs::Tuple{Int,Int})
     mask2 = bmask(b2)
 
     configs = itercontrol(log2dim1(state), [locs...], [1,0])
-    X, Y = fix_cudiv(state,length(configs))
-    function kf(state, mask1, mask2)
-        inds = ((blockIdx().x-1) * blockDim().x + threadIdx().x,
-                       (blockIdx().y-1) * blockDim().y + threadIdx().y)
-        c = inds[2]
-        c <= size(state, 2) || return nothing
+    function kf(ctx, state, mask1, mask2)
+        inds = @idx replace_first(size(state), length(configs))
 
         b = configs[inds[1]]
         i = b+1
@@ -92,7 +84,7 @@ function instruct!(state::DenseCuVecOrMat, ::Val{:SWAP}, locs::Tuple{Int,Int})
         swaprows!(piecewise(state, inds), i, i_)
         nothing
     end
-    @cuda threads=X blocks=Y kf(state, mask1, mask2)
+    gpu_call(kf, state, mask1, mask2; elements=length(configs)*size(state,2))
     state
 end
 
@@ -102,8 +94,7 @@ using Yao.ConstGate: SWAPGate
 
 function instruct!(state::DenseCuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::Real)
     D, kf = pswap_kernel(log2dim1(state),locs..., θ)
-    X, Y = fix_cudiv(state, D)
-    @cuda threads=X blocks=Y simple_kernel(kf, state)
+    gpu_call(kf, state; elements=D*size(state,2))
     state
 end
 
