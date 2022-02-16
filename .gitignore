@@ -16,6 +16,7 @@ docs/src/tutorial/QCBM.md
 _*.dat
 *.swp
 __pycache__/
+.vscode/
 
 Manifest.toml
 

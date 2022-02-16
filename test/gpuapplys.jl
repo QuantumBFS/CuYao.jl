@@ -21,8 +21,8 @@ using CUDA
             mat(ComplexF32, put(2,2=>P0))
             ]
 
-        @test instruct!(v1 |> CuArray, UN, (3,1)) |> Vector ≈ instruct!(v1 |> copy, UN, (3,1))
-        @test instruct!(vn |> CuArray, UN, (3,1)) |> Matrix ≈ instruct!(vn |> copy, UN, (3,1))
+        @test instruct!(Val(2),v1 |> CuArray, UN, (3,1)) |> Vector ≈ instruct!(Val(2),v1 |> copy, UN, (3,1))
+        @test instruct!(Val(2),vn |> CuArray, UN, (3,1)) |> Matrix ≈ instruct!(Val(2),vn |> copy, UN, (3,1))
     end
     # sparse matrix like P0, P1 et. al. are not implemented.
 end
@@ -34,8 +34,8 @@ end
     v1 = randn(ComplexF32, N)
     vn = randn(ComplexF32, N, 333)
 
-    @test instruct!(v1 |> CuArray, Val(:SWAP), (3,5)) |> Vector ≈ instruct!(v1 |> copy, Val(:SWAP), (3,5))
-    @test instruct!(vn |> CuArray, Val(:SWAP), (3,5)) |> Matrix ≈ instruct!(vn |> copy, Val(:SWAP), (3,5))
+    @test instruct!(Val(2),v1 |> CuArray, Val(:SWAP), (3,5)) |> Vector ≈ instruct!(Val(2),v1 |> copy, Val(:SWAP), (3,5))
+    @test instruct!(Val(2),vn |> CuArray, Val(:SWAP), (3,5)) |> Matrix ≈ instruct!(Val(2),vn |> copy, Val(:SWAP), (3,5))
 end
 
 @testset "gpu instruct! 1bit" begin
@@ -46,8 +46,8 @@ end
     vn = randn(ComplexF32, N, 333)
 
     for U1 in [mat(H), mat(Z), mat(I2), mat(ConstGate.P0), mat(X), mat(Y)]
-        @test instruct!(v1 |> CuArray, U1, (3,)) |> Vector ≈ instruct!(v1 |> copy, U1, (3,))
-        @test instruct!(vn |> CuArray, U1, (3,)) |> Matrix ≈ instruct!(vn |> copy, U1, (3,))
+        @test instruct!(Val(2),v1 |> CuArray, U1, (3,)) |> Vector ≈ instruct!(Val(2),v1 |> copy, U1, (3,))
+        @test instruct!(Val(2),vn |> CuArray, U1, (3,)) |> Matrix ≈ instruct!(Val(2),vn |> copy, U1, (3,))
     end
     # sparse matrix like P0, P1 et. al. are not implemented.
 end
@@ -60,11 +60,11 @@ end
     vn = randn(ComplexF32, N, 333)
 
     for G in [:X, :Y, :Z, :T, :H, :Tdag, :S, :Sdag]
-        @test instruct!(v1 |> CuArray, Val(G), (3,)) |> Vector ≈ instruct!(v1 |> copy, Val(G), (3,))
-        @test instruct!(vn |> CuArray, Val(G), (3,)) |> Matrix ≈ instruct!(vn |> copy, Val(G), (3,))
+        @test instruct!(Val(2),v1 |> CuArray, Val(G), (3,)) |> Vector ≈ instruct!(Val(2),v1 |> copy, Val(G), (3,))
+        @test instruct!(Val(2),vn |> CuArray, Val(G), (3,)) |> Matrix ≈ instruct!(Val(2),vn |> copy, Val(G), (3,))
         if G != :H
-            @test instruct!(v1 |> CuArray, Val(G), (1,3,4)) |> Vector ≈ instruct!(v1 |> copy, Val(G), (1,3,4))
-            @test instruct!(vn |> CuArray,  Val(G),(1,3,4)) |> Matrix ≈ instruct!(vn |> copy, Val(G), (1,3,4))
+            @test instruct!(Val(2),v1 |> CuArray, Val(G), (1,3,4)) |> Vector ≈ instruct!(Val(2),v1 |> copy, Val(G), (1,3,4))
+            @test instruct!(Val(2),vn |> CuArray,  Val(G),(1,3,4)) |> Matrix ≈ instruct!(Val(2),vn |> copy, Val(G), (1,3,4))
         end
     end
 end
@@ -77,10 +77,10 @@ end
     vn = randn(ComplexF32, N, 333)
 
     for G in [:X, :Y, :Z, :T, :Tdag, :S, :Sdag]
-        @test instruct!(v1 |> CuArray, Val(G), (3,), (4,5), (0, 1)) |> Vector ≈ instruct!(v1 |> copy, Val(G), (3,), (4,5), (0, 1))
-        @test instruct!(vn |> CuArray, Val(G), (3,), (4,5), (0, 1)) |> Matrix ≈ instruct!(vn |> copy, Val(G), (3,), (4,5), (0, 1))
-        @test instruct!(v1 |> CuArray, Val(G), (3,), (1,), (1,)) |> Vector ≈ instruct!(v1 |> copy, Val(G),(3,), (1,), (1,))
-        @test instruct!(vn |> CuArray, Val(G), (3,), (1,), (1,)) |> Matrix ≈ instruct!(vn |> copy, Val(G),(3,), (1,), (1,))
+        @test instruct!(Val(2),v1 |> CuArray, Val(G), (3,), (4,5), (0, 1)) |> Vector ≈ instruct!(Val(2),v1 |> copy, Val(G), (3,), (4,5), (0, 1))
+        @test instruct!(Val(2),vn |> CuArray, Val(G), (3,), (4,5), (0, 1)) |> Matrix ≈ instruct!(Val(2),vn |> copy, Val(G), (3,), (4,5), (0, 1))
+        @test instruct!(Val(2),v1 |> CuArray, Val(G), (3,), (1,), (1,)) |> Vector ≈ instruct!(Val(2),v1 |> copy, Val(G),(3,), (1,), (1,))
+        @test instruct!(Val(2),vn |> CuArray, Val(G), (3,), (1,), (1,)) |> Matrix ≈ instruct!(Val(2),vn |> copy, Val(G),(3,), (1,), (1,))
     end
 end
 

@@ -7,7 +7,7 @@ gpu_compatible(A::AbstractVecOrMat) = A |> staticize
 gpu_compatible(A::StaticArray) = A
 
 ###################### unapply! ############################
-function instruct!(state::DenseCuVecOrMat, U0::AbstractMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M}
+function instruct!(::Val{2}, state::DenseCuVecOrMat, U0::AbstractMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M}
     U0 = gpu_compatible(U0)
     # reorder a unirary matrix.
     D, kf = un_kernel(log2dim1(state), clocs, cvals, U0, locs)
@@ -15,18 +15,18 @@ function instruct!(state::DenseCuVecOrMat, U0::AbstractMatrix, locs::NTuple{M, I
     gpu_call(kf, state; elements=D*size(state,2))
     state
 end
-instruct!(state::DenseCuVecOrMat, U0::IMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = state
-instruct!(state::DenseCuVecOrMat, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = instruct!(state, U0 |> Matrix, locs, clocs, cvals)
+instruct!(::Val{2}, state::DenseCuVecOrMat, U0::IMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = state
+instruct!(::Val{2}, state::DenseCuVecOrMat, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = instruct!(Val(2), state, U0 |> Matrix, locs, clocs, cvals)
 
 ################## General U1 apply! ###################
 for MT in [:SDDiagonal, :SDPermMatrix, :AbstractMatrix, :SDSparseMatrixCSC]
-    @eval function instruct!(state::DenseCuVecOrMat, U1::$MT, ibit::Tuple{Int})
+    @eval function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::$MT, ibit::Tuple{Int})
         D,kf = u1_kernel(log2dim1(state), U1, ibit...)
         gpu_call(kf, state; elements=D*size(state,2))
         state
     end
 end
-instruct!(state::DenseCuVecOrMat, U::IMatrix, locs::Tuple{Int}) = state
+instruct!(::Val{2}, state::DenseCuVecOrMat, U::IMatrix, locs::Tuple{Int}) = state
 
 ################## XYZ #############
 using Yao.ConstGate: S, T, Sdag, Tdag
@@ -50,26 +50,26 @@ for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
     end
 
     @eval begin
-        function YaoBase.instruct!(state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
+        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
             _instruct!(state, g, locs)
         end
 
-        function YaoBase.instruct!(state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int})
+        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int})
             _instruct!(state, g, locs)
         end
 
-        function YaoBase.instruct!(state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
             _instruct!(state, g, loc, clocs, cvals)
         end
 
-        function YaoBase.instruct!(state::DenseCuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
+        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
             _instruct!(state, vg, loc, cloc, cval)
         end
     end
 
 end
 
-function instruct!(state::DenseCuVecOrMat, ::Val{:SWAP}, locs::Tuple{Int,Int})
+function instruct!(::Val{2}, state::DenseCuVecOrMat, ::Val{:SWAP}, locs::Tuple{Int,Int})
     b1, b2 = locs
     mask1 = bmask(b1)
     mask2 = bmask(b2)
@@ -92,7 +92,7 @@ end
 # parametrized swap gate
 using Yao.ConstGate: SWAPGate
 
-function instruct!(state::DenseCuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::Real)
+function instruct!(::Val{2}, state::DenseCuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::Real)
     D, kf = pswap_kernel(log2dim1(state),locs..., θ)
     gpu_call(kf, state; elements=D*size(state,2))
     state
@@ -107,6 +107,7 @@ end
 
 for RG in [:Rx, :Ry, :Rz]
     @eval function instruct!(
+            ::Val{2}, 
             state::DenseCuVecOrMat{T},
             ::Val{$(QuoteNode(RG))},
             locs::Tuple{Int},

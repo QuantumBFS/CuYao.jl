@@ -50,12 +50,12 @@ end
         res = measure!(ResetTo(3), greg1)
         @test all(measure(greg1, nshots=10) .== 3)
         @test greg1 |> isnormalized
-        @test all(select.(greg0 |> cpu, res |> myvec) .|> normalize! .≈ select.(greg1 |> cpu, 3))
+        @test all(select.(BatchedArrayReg(greg0 |> cpu), res |> myvec) .|> normalize! .≈ select.(BatchedArrayReg(greg1 |> cpu), 3))
 
         greg1 = greg |> copy |> focus!(1,4,3)
         greg0 = copy(greg1)
         res = measure!(greg1)
-        @test all(select.(greg0 |> cpu, res |> myvec) .|> normalize! .≈ select.(greg1 |> cpu, res|>myvec))
+        @test all(select.(BatchedArrayReg(greg0 |> cpu), res |> myvec) .|> normalize! .≈ select.(BatchedArrayReg(greg1 |> cpu), res|>myvec))
     end
 
     @test join(rand_state(3) |> cu, rand_state(3) |> cu) |> nactive == 6
@@ -64,12 +64,12 @@ end
 
 @testset "insert_qubits!" begin
     reg = rand_state(5; nbatch=10)
-    res = insert_qubits!(reg |> cu, 3; nqubits=2) |> cpu
-    @test insert_qubits!(reg, 3; nqubits=2) ≈ res
+    res = insert_qudits!(reg |> cu, 3; nqudits=2) |> cpu
+    @test insert_qudits!(reg, 3; nqudits=2) ≈ res
 
     reg = rand_state(5, nbatch=10) |>focus!(2,3)
-    res = insert_qubits!(reg |> cu, 3; nqubits=2) |> cpu
-    @test insert_qubits!(reg, 3; nqubits=2) ≈ res
+    res = insert_qudits!(reg |> cu, 3; nqudits=2) |> cpu
+    @test insert_qudits!(reg, 3; nqudits=2) ≈ res
 end
 
 @testset "cuda-op-measures" begin
