@@ -39,8 +39,8 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::AbstractMatrix, ibit::T
     @debug "The generic U(2) matrix of size ($(size(U1))), on: GPU, locations: $(ibit), controlled by: $(clocs) = $(cvals)."
     a, c, b, d = U1
     nbit = log2dim1(state)
-    step = 1<<(ibit-1)
-    configs = itercontrol(nbit, [ibit], [0])
+    step = 1<<(ibit[1]-1)
+    configs = itercontrol(nbit, [ibit[1]], [0])
 
     len = length(configs)
     @inline function kernel(ctx, state, a, b, c, d, len)
@@ -57,8 +57,8 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDPermMatrix, ibit::Tup
     @debug "The single qubit permutation matrix of size ($(size(U1))), on: GPU, locations: $(ibit), controlled by: $(clocs) = $(cvals)."
     nbit = log2dim1(state)
     b, c = U1.vals
-    step = 1<<(ibit-1)
-    configs = itercontrol(nbit, [ibit], [0])
+    step = 1<<(ibit[1]-1)
+    configs = itercontrol(nbit, [ibit[1]], [0])
 
     len = length(configs)
     function kernel(ctx, state, b, c, step, len, configs)
@@ -75,7 +75,7 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDDiagonal, ibit::Tuple
     @debug "The single qubit diagonal matrix of size ($(size(U1))), on: GPU, locations: $(ibit), controlled by: $(clocs) = $(cvals)."
     a, d = U1.diag
     nbit = log2dim1(state)
-    mask = bmask(ibit)
+    mask = bmask(ibit...)
     @inline function kernel(ctx, state, a, d, mask)
         inds = @cartesianidx state
         i = inds[1]
@@ -158,20 +158,36 @@ function _instruct!(state::DenseCuVecOrMat, ::Val{:Z}, locs::NTuple{Int}, clocs:
 end
 
 
-for (G, FACTOR) in zip([:S, :T, :Sdag, :Tdag], [:(-one(Int32)), :(1f0im), :($(exp(im*π/4))), :(-1f0im), :($(exp(-im*π/4)))])
-    @eval function _instruct!(state::DenseCuVecOrMat, ::Val{:Z}, locs::NTuple{Int}, clocs::Tuple{}, cvals::Tuple{})
-        length(locs) == 0 && return state
-        nbit = log2dim1(state)
-        mask = bmask(Int32, locs...)
-        @inline function kernel(ctx, state)
+for (G, FACTOR) in zip([:Z, :S, :T, :Sdag, :Tdag], [:(-one(Int32)), :(1f0im), :($(exp(im*π/4))), :(-1f0im), :($(exp(-im*π/4)))])
+    if G !== :Z
+        @eval function _instruct!(state::DenseCuVecOrMat, ::Val{$(QuoteNode(G))}, locs::NTuple{Int}, clocs::Tuple{}, cvals::Tuple{})
+            length(locs) == 0 && return state
+            nbit = log2dim1(state)
+            mask = bmask(Int32, locs...)
+            @inline function kernel(ctx, state)
+                inds = @cartesianidx state
+                i = inds[1]
+                piecewise(state, inds)[i] *= $d ^ count_ones(Int32(i-1)&mask)
+                return
+            end
+            gpu_call(kernel, state, mask; elements=length(state))
+            return state
+        end
+    end
+    @eval function _instruct!(state::DenseCuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+        ctrl = controller((cbits..., loc...), (cvals..., 1))
+        @inline function kernel(ctx, state, a, d, ctrl)
             inds = @cartesianidx state
             i = inds[1]
-            piecewise(state, inds)[i] *= $d ^ count_ones(Int32(i-1)&mask)
+            piecewise(state, inds)[i] *= ctrl(i-1) ? d : a
             return
         end
-        gpu_call(kernel, state, mask; elements=length(state))
+        gpu_call(kernel, state, a, d, ctrl; elements=length(state))
         return state
     end
+end
+
+
 end
 
 
@@ -193,6 +209,7 @@ for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
         state
     end
 
+for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
     @eval begin
         function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
             _instruct!(state, g, locs, (), ())
