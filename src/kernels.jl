@@ -108,23 +108,6 @@ end
     end
 end
 
-@inline function y_kernel(nbit::Int, bits::Ints)
-    mask = bmask(Int, bits...)
-    configs = itercontrol(nbit, [bits[1]], [0])
-    bit_parity = length(bits)%2 == 0 ? 1 : -1
-    factor = (-im)^length(bits)
-    len = length(configs)
-    len, @inline function kernel(ctx, state)
-        inds = @idx replace_first(size(state), len)
-        b = @inbounds configs[inds[1]]
-        i_ = flip(b, mask) + 1
-        factor1 = count_ones(b&mask)%2 == 1 ? -factor : factor
-        factor2 = factor1*bit_parity
-        @inbounds swaprows!(piecewise(state, inds), b+1, i_, factor2, factor1)
-        return
-    end
-end
-
 @inline function z_kernel(nbit::Int,bits::Ints)
     mask = bmask(bits...)
     1<<nbit,@inline function kernel(ctx, state)
