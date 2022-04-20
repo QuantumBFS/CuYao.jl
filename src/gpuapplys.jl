@@ -9,10 +9,11 @@ gpu_compatible(A::StaticArray) = A
 ###################### unapply! ############################
 function instruct!(::Val{2}, state::DenseCuVecOrMat, U0::AbstractMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M}
     @debug "The generic U(N) matrix of size ($(size(U0))), on: GPU, locations: $(locs), controlled by: $(clocs) = $(cvals)."
+    nbit = log2dim1(state)
     U0 = gpu_compatible(U0)
     # reorder a unirary matrix.
     U = (all(TupleTools.diff(locs).>0) ? U0 : reorder(U0, collect(locs)|>sortperm)) |> staticize
-    locked_bits = [cbits..., locs...]
+    locked_bits = [clocs..., locs...]
     locked_vals = [cvals..., zeros(Int, M)...]
     locs_raw = [i+1 for i in itercontrol(nbit, setdiff(1:nbit, locs), zeros(Int, nbit-M))] |> staticize
     configs = itercontrol(nbit, locked_bits, locked_vals)
@@ -32,15 +33,15 @@ instruct!(::Val{2}, state::DenseCuVecOrMat, U0::IMatrix, locs::NTuple{M, Int}, c
 instruct!(::Val{2}, state::DenseCuVecOrMat, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = instruct!(Val(2), state, U0 |> Matrix, locs, clocs, cvals)
 
 ################## General U1 apply! ###################
-function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDSparseMatrixCSC, ibit::Tuple{Int}, clocs::Tuple{}, cvals::Tuple{})
-    instruct!(Val(2), state, Matrix(U1), ibit, clocs, cval)
+function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDSparseMatrixCSC, locs::Tuple{Int})
+    instruct!(Val(2), state, Matrix(U1), locs, clocs, cval)
 end
-function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::AbstractMatrix, ibit::Tuple{Int}, clocs::Tuple{}, cvals::Tuple{})
-    @debug "The generic U(2) matrix of size ($(size(U1))), on: GPU, locations: $(ibit), controlled by: $(clocs) = $(cvals)."
+function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::AbstractMatrix, locs::Tuple{Int})
+    @debug "The generic U(2) matrix of size ($(size(U1))), on: GPU, locations: $(locs)."
     a, c, b, d = U1
     nbit = log2dim1(state)
-    step = 1<<(ibit[1]-1)
-    configs = itercontrol(nbit, [ibit[1]], [0])
+    step = 1<<(locs[1]-1)
+    configs = itercontrol(nbit, [locs[1]], [0])
 
     len = length(configs)
     @inline function kernel(ctx, state, a, b, c, d, len)
@@ -49,16 +50,16 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::AbstractMatrix, ibit::T
         @inbounds u1rows!(piecewise(state, inds), i, i+step, a, b, c, d)
         return
     end
-    gpu_call(kf, state, a, b, c, d, len; elements=len*size(state,2))
+    gpu_call(kernel, state, a, b, c, d, len; elements=len*size(state,2))
     return state
 end
 
-function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDPermMatrix, ibit::Tuple{Int}, clocs::Tuple{}, cvals::Tuple{})
-    @debug "The single qubit permutation matrix of size ($(size(U1))), on: GPU, locations: $(ibit), controlled by: $(clocs) = $(cvals)."
+function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDPermMatrix, locs::Tuple{Int})
+    @debug "The single qubit permutation matrix of size ($(size(U1))), on: GPU, locations: $(locs)."
     nbit = log2dim1(state)
     b, c = U1.vals
-    step = 1<<(ibit[1]-1)
-    configs = itercontrol(nbit, [ibit[1]], [0])
+    step = 1<<(locs[1]-1)
+    configs = itercontrol(nbit, [locs[1]], [0])
 
     len = length(configs)
     function kernel(ctx, state, b, c, step, len, configs)
@@ -71,11 +72,11 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDPermMatrix, ibit::Tup
     return state
 end
 
-function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDDiagonal, ibit::Tuple{Int}, clocs::Tuple{}, cvals::Tuple{})
-    @debug "The single qubit diagonal matrix of size ($(size(U1))), on: GPU, locations: $(ibit), controlled by: $(clocs) = $(cvals)."
+function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDDiagonal, locs::Tuple{Int})
+    @debug "The single qubit diagonal matrix of size ($(size(U1))), on: GPU, locations: $(locs)."
     a, d = U1.diag
     nbit = log2dim1(state)
-    mask = bmask(ibit...)
+    mask = bmask(locs...)
     @inline function kernel(ctx, state, a, d, mask)
         inds = @cartesianidx state
         i = inds[1]
@@ -91,10 +92,12 @@ instruct!(::Val{2}, state::DenseCuVecOrMat, U::IMatrix, locs::Tuple{Int}) = stat
 ################## XYZ #############
 using Yao.ConstGate: S, T, Sdag, Tdag
 
+_instruct!(state::DenseCuVecOrMat, ::Val{:X}, locs::NTuple{L,Int}) where {L} = _instruct!(state, Val(:X), locs, (), ())
 function _instruct!(state::DenseCuVecOrMat, ::Val{:X}, locs::NTuple{L,Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {L,C}
+    @debug "The X gate, on: GPU, locations: $(locs), controlled by: $(clocs) = $(cvals)."
     length(locs) == 0 && return state
     nbit = log2dim1(state)
-    configs = itercontrol(nbit, [cbits..., locs[1]], [cvals..., 0])
+    configs = itercontrol(nbit, [clocs..., locs[1]], [cvals..., 0])
     mask = bmask(locs...)
     len = length(configs)
     @inline function kernel(ctx, state, mask, len, configs)
@@ -107,14 +110,16 @@ function _instruct!(state::DenseCuVecOrMat, ::Val{:X}, locs::NTuple{L,Int}, cloc
     return state
 end
 
-function _instruct!(state::DenseCuVecOrMat, ::Val{:Y}, locs::NTuple{C,Int}, clocs::NTuple{}, cvals::NTuple{}) where C
+function _instruct!(state::DenseCuVecOrMat, ::Val{:Y}, locs::NTuple{C,Int}) where C
+    @debug "The Y gate, on: GPU, locations: $(locs)."
     length(locs) == 0 && return state
     nbit = log2dim1(state)
+    mask = bmask(Int, locs...)
     configs = itercontrol(nbit, [locs[1]], [0])
     bit_parity = length(locs)%2 == 0 ? 1 : -1
     factor = (-im)^length(locs)
     len = length(configs)
-    @inline function kernel(ctx, state, factor1, factor2, mask, bit_par, configs, len)
+    @inline function kernel(ctx, state, mask, bit_parity, configs, len)
         inds = @idx replace_first(size(state), len)
         b = @inbounds configs[inds[1]]
         i_ = flip(b, mask) + 1
@@ -123,15 +128,16 @@ function _instruct!(state::DenseCuVecOrMat, ::Val{:Y}, locs::NTuple{C,Int}, cloc
         @inbounds swaprows!(piecewise(state, inds), b+1, i_, factor2, factor1)
         return
     end
-    gpu_call(kernel, state, factor1, factor2, mask, bit_par, configs, len; elements=len*size(state,2))
+    gpu_call(kernel, state, mask, bit_parity, configs, len; elements=len*size(state,2))
     return state
 end
 
-function _instruct!(state::DenseCuVecOrMat, ::Val{:Y}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+function _instruct!(state::DenseCuVecOrMat, ::Val{:Y}, locs::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+    @debug "The Y gate, on: GPU, locations: $(locs), controlled by: $(clocs) = $(cvals)."
     length(locs) == 0 && return state
     nbit = log2dim1(state)
-    configs = itercontrol(nbit, [cbits..., bit], [cvals..., 0])
-    mask = bmask(bit)
+    configs = itercontrol(nbit, [clocs..., locs...], [cvals..., 0])
+    mask = bmask(locs...)
     len = length(configs)
     @inline function kernel(ctx, state, configs, mask, len)
         inds = @idx replace_first(size(state), len)
@@ -143,7 +149,8 @@ function _instruct!(state::DenseCuVecOrMat, ::Val{:Y}, loc::Tuple{Int}, clocs::N
     return state
 end
 
-function _instruct!(state::DenseCuVecOrMat, ::Val{:Z}, locs::NTuple{Int}, clocs::Tuple{}, cvals::Tuple{})
+function _instruct!(state::DenseCuVecOrMat, ::Val{:Z}, locs::NTuple{C,Int}) where C
+    @debug "The Z gate, on: GPU, locations: $(locs)."
     length(locs) == 0 && return state
     nbit = log2dim1(state)
     mask = bmask(locs...)
@@ -160,77 +167,58 @@ end
 
 for (G, FACTOR) in zip([:Z, :S, :T, :Sdag, :Tdag], [:(-one(Int32)), :(1f0im), :($(exp(im*π/4))), :(-1f0im), :($(exp(-im*π/4)))])
     if G !== :Z
-        @eval function _instruct!(state::DenseCuVecOrMat, ::Val{$(QuoteNode(G))}, locs::NTuple{Int}, clocs::Tuple{}, cvals::Tuple{})
+        @eval function _instruct!(state::DenseCuVecOrMat, ::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
+            @debug "The $($(QuoteNode(G))) gate, on: GPU, locations: $(locs)."
             length(locs) == 0 && return state
             nbit = log2dim1(state)
             mask = bmask(Int32, locs...)
-            @inline function kernel(ctx, state)
+            @inline function kernel(ctx, state, mask)
                 inds = @cartesianidx state
                 i = inds[1]
-                piecewise(state, inds)[i] *= $d ^ count_ones(Int32(i-1)&mask)
+                piecewise(state, inds)[i] *= $FACTOR ^ count_ones(Int32(i-1)&mask)
                 return
             end
             gpu_call(kernel, state, mask; elements=length(state))
             return state
         end
     end
-    @eval function _instruct!(state::DenseCuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
-        ctrl = controller((cbits..., loc...), (cvals..., 1))
-        @inline function kernel(ctx, state, a, d, ctrl)
+    @eval function _instruct!(state::DenseCuVecOrMat, ::Val{$(QuoteNode(G))}, locs::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+        @debug "The $($(QuoteNode(G))) gate, on: GPU, locations: $(locs), controlled by: $(clocs) = $(cvals)."
+        ctrl = controller((clocs..., locs...), (cvals..., 1))
+        @inline function kernel(ctx, state, ctrl)
             inds = @cartesianidx state
             i = inds[1]
-            piecewise(state, inds)[i] *= ctrl(i-1) ? d : a
+            piecewise(state, inds)[i] *= ctrl(i-1) ? $FACTOR : one($FACTOR)
             return
         end
-        gpu_call(kernel, state, a, d, ctrl; elements=length(state))
+        gpu_call(kernel, state, ctrl; elements=length(state))
         return state
     end
 end
 
-
-end
-
-
-for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
-    KERNEL = Symbol(G |> string |> lowercase, :_kernel)
-
-    @eval function _instruct!(state::DenseCuVecOrMat, ::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
-        length(locs) == 0 && return state
-
-        D, kf = $KERNEL(log2dim1(state), locs)
-        gpu_call(kf, state; elements=D*size(state,2))
-        state
-    end
-
-    CKERNEL = Symbol(:c, KERNEL)
-    @eval function _instruct!(state::DenseCuVecOrMat, ::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
-        D,kf = $CKERNEL(log2dim1(state), clocs, cvals, loc...)
-        gpu_call(kf, state; elements=D*size(state,2))
-        state
-    end
-
 for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
     @eval begin
         function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
-            _instruct!(state, g, locs, (), ())
+            _instruct!(state, g, locs)
         end
 
         function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int})
-            _instruct!(state, g, locs, (), ())
+            _instruct!(state, g, locs)
         end
 
-        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, loc::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
-            _instruct!(state, g, loc, clocs, cvals)
+        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+            _instruct!(state, g, locs, clocs, cvals)
         end
 
-        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, vg::Val{$(QuoteNode(G))}, loc::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
-            _instruct!(state, vg, loc, cloc, cval)
+        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, vg::Val{$(QuoteNode(G))}, locs::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
+            _instruct!(state, vg, locs, cloc, cval)
         end
     end
 
 end
 
 function instruct!(::Val{2}, state::DenseCuVecOrMat, ::Val{:SWAP}, locs::Tuple{Int,Int})
+    @debug "The SWAP gate, on: GPU, locations: $(locs)."
     b1, b2 = locs
     mask1 = bmask(b1)
     mask2 = bmask(b2)
@@ -254,13 +242,14 @@ end
 using Yao.ConstGate: SWAPGate
 
 function instruct!(::Val{2}, state::DenseCuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::Real)
+    @debug "The PSWAP gate, on: GPU, locations: $(locs)."
     nbit = log2dim1(state)
-    mask1 = bmask(m)
-    mask2 = bmask(n)
+    mask1 = bmask(locs[1])
+    mask2 = bmask(locs[2])
     mask12 = mask1|mask2
-    a, c, b_, d = mat(Rx(theta))
-    e = exp(-im/2*theta)
-    configs = itercontrol(nbit, [m,n], [0,0])
+    a, c, b_, d = mat(Rx(θ))
+    e = exp(-im/2*θ)
+    configs = itercontrol(nbit, [locs...], [0,0])
     len = length(configs)
     @inline function kernel(ctx, state, mask2, mask12, configs, a, b_, c, d)
         inds = @idx replace_first(size(state), len)
