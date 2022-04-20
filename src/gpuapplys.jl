@@ -1,7 +1,19 @@
 using Yao.YaoBase
 import Yao.YaoArrayRegister: u1rows!, unrows!, autostatic, instruct!, swaprows!
 
-include("kernels.jl")
+# get index
+macro idx(shape, grididx=1, ctxsym=:ctx)
+    quote
+        x = $(esc(shape))
+        i = $linear_index($(esc(ctxsym)), $(esc(grididx)))
+        i > $prod2(x) && return
+        @inbounds Base.CartesianIndices(x)[i].I
+    end
+end
+replace_first(x::NTuple{2}, v) = (v, x[2])
+replace_first(x::NTuple{1}, v) = (v,)
+prod2(x::NTuple{2}) = x[1] * x[2]
+prod2(x::NTuple{1}) = x[1]
 
 gpu_compatible(A::AbstractVecOrMat) = A |> staticize
 gpu_compatible(A::StaticArray) = A
