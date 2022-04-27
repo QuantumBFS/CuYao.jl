@@ -1,16 +1,10 @@
-using CUDA.GPUArrays: gpu_call, @linearidx, @cartesianidx, linear_index
-
 # TODO
 # support norm(view(reshape(A, m, n), :, 1))
-using LinearAlgebra
-import LinearAlgebra: norm
 norm2(A::DenseCuArray; dims=1) = mapreduce(abs2, +, A, dims=dims) .|> CUDA.sqrt
 
-export piecewise
 piecewise(state::AbstractVector, inds) = state
 piecewise(state::AbstractMatrix, inds) = @inbounds view(state,:,inds[2])
 
-import Base: kron, getindex
 function kron(A::DenseCuArray{T1}, B::DenseCuArray{T2}) where {T1, T2}
     res = CUDA.zeros(promote_type(T1,T2), (size(A).*size(B))...)
     @inline function kernel(ctx, res, A, B)
@@ -32,7 +26,7 @@ end
 Computes Kronecker products in-place on the GPU.
 The results are stored in 'C', overwriting the existing values of 'C'.
 """
-function Yao.YaoBase.kron!(C::CuArray{T3}, A::DenseCuArray{T1}, B::DenseCuArray{T2}) where {T1, T2, T3}
+function Yao.YaoArrayRegister.kron!(C::CuArray{T3}, A::DenseCuArray{T1}, B::DenseCuArray{T2}) where {T1, T2, T3}
     @boundscheck (size(C) == (size(A,1)*size(B,1), size(A,2)*size(B,2))) || throw(DimensionMismatch())
     CI = Base.CartesianIndices(C)
     @inline function kernel(ctx, C, A, B)

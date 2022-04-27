@@ -6,6 +6,7 @@ using BitBasis
 using Statistics: mean
 using StaticArrays
 using CUDA
+using Yao.YaoArrayRegister: batched_kron, batched_kron!, batch_normalize!
 CUDA.allowscalar(false)
 
 @testset "basics" begin
@@ -64,12 +65,15 @@ end
 
 @testset "insert_qubits!" begin
     reg = rand_state(5; nbatch=10)
-    res = insert_qudits!(reg |> cu, 3; nqudits=2) |> cpu
-    @test insert_qudits!(reg, 3; nqudits=2) ≈ res
+    res = insert_qudits!(reg |> cu, 3, 2) |> cpu
+    @test insert_qudits!(reg, 3, 2) ≈ res
+    @test append_qudits!(copy(reg) |> cu, 3) |> cpu ≈ append_qudits!(copy(reg), 3)
 
     reg = rand_state(5, nbatch=10) |>focus!(2,3)
-    res = insert_qudits!(reg |> cu, 3; nqudits=2) |> cpu
-    @test insert_qudits!(reg, 3; nqudits=2) ≈ res
+    res = insert_qudits!(reg |> cu, 3, 2) |> cpu
+    @test insert_qudits!(reg, 3, 2) ≈ res
+
+    @test append_qudits!(copy(reg) |> cu, 3) |> cpu ≈ append_qudits!(copy(reg), 3)
 end
 
 @testset "cuda-op-measures" begin
@@ -95,9 +99,9 @@ end
     c = zeros(12,8)
     ca, cb, cc = cu(a), cu(b), cu(c)
     @test kron(ca, cb) |> Array ≈ kron(a, b)
-    @test Yao.YaoBase.kron!(cc, ca, cb) |> Array ≈ kron(a,b)
+    @test Yao.YaoArrayRegister.kron!(cc, ca, cb) |> Array ≈ kron(a,b)
 
-    Yao.YaoBase.kron!(c,a,b)
+    Yao.YaoArrayRegister.kron!(c,a,b)
     @test cc |> Array ≈ c
 
     v = randn(100) |> cu
@@ -116,4 +120,19 @@ end
 
     batched_kron!(c, a, b)
     @test cc |> Array ≈ c
+end
+
+@testset "zero_state, et al" begin
+    for b = [4, NoBatch()]
+        reg = cuzero_state(3; nbatch=b)
+        @test cpu(reg) ≈ zero_state(3; nbatch=b) && reg isa GPUReg
+        reg = curand_state(3; nbatch=b)
+        @test reg isa GPUReg
+        reg = cuuniform_state(3; nbatch=b)
+        @test cpu(reg) ≈ uniform_state(3; nbatch=b) && reg isa GPUReg
+        reg = cuproduct_state(bit"110"; nbatch=b)
+        @test cpu(reg) ≈ product_state(bit"110"; nbatch=b) && reg isa GPUReg
+        reg = cughz_state(3; nbatch=b)
+        @test cpu(reg) ≈ ghz_state(3; nbatch=b) && reg isa GPUReg
+    end
 end

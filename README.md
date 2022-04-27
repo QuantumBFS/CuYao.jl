@@ -44,11 +44,14 @@ To start, see the following example
 ```julia
 using CuYao
 
-cureg = rand_state(9; nbatch=1000) |> cu 
+cureg = rand_state(9; nbatch=1000) |> cu   # or `curand_state(9; nbatch=1000)`.
 cureg |> put(9, 2=>Z)
-measure!(cureg |> addbits!(1) |> focus!(4,1,3))
+measure!(cureg |> append_qubits!(1) |> focus!(4,1,3))
 cureg |> relax!(4,1,3) |> cpu
 ```
+
+Constructors `curand_state`, `cuzero_state`, `cuproduct_state`, `cuuniform_state` and `cughz_state` are tailored for GPU,
+they are often faster than uploading a CPU register to CPU.
 
 ## Features
 ### Supported Gates
@@ -63,8 +66,8 @@ cureg |> relax!(4,1,3) |> cpu
 
 ### Supported Register Operations
 - measure!, measure_reset!, measure_remove!, select
-- addbit!
-- insert_qubit!
+- append_qudits!, append_qubits!
+- insert_qudit!, insert_qubits!
 - focus!, relax!
 - join
 - density_matrix

@@ -1,6 +1,3 @@
-using Yao.YaoBase
-import Yao.YaoArrayRegister: u1rows!, unrows!, autostatic, instruct!, swaprows!
-
 # get index
 macro idx(shape, grididx=1, ctxsym=:ctx)
     quote
@@ -102,7 +99,6 @@ end
 instruct!(::Val{2}, state::DenseCuVecOrMat, U::IMatrix, locs::Tuple{Int}) = state
 
 ################## XYZ #############
-using Yao.ConstGate: S, T, Sdag, Tdag
 
 _instruct!(state::DenseCuVecOrMat, ::Val{:X}, locs::NTuple{L,Int}) where {L} = _instruct!(state, Val(:X), locs, (), ())
 function _instruct!(state::DenseCuVecOrMat, ::Val{:X}, locs::NTuple{L,Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {L,C}
@@ -210,19 +206,19 @@ end
 
 for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
     @eval begin
-        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
+        function YaoArrayRegister.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
             _instruct!(state, g, locs)
         end
 
-        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int})
+        function YaoArrayRegister.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int})
             _instruct!(state, g, locs)
         end
 
-        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+        function YaoArrayRegister.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
             _instruct!(state, g, locs, clocs, cvals)
         end
 
-        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, vg::Val{$(QuoteNode(G))}, locs::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
+        function YaoArrayRegister.instruct!(::Val{2}, state::DenseCuVecOrMat, vg::Val{$(QuoteNode(G))}, locs::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
             _instruct!(state, vg, locs, cloc, cval)
         end
     end
@@ -251,7 +247,6 @@ end
 
 ############## other gates ################
 # parametrized swap gate
-using Yao.ConstGate: SWAPGate
 
 function instruct!(::Val{2}, state::DenseCuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::Real)
     @debug "The PSWAP gate, on: GPU, locations: $(locs)."
@@ -276,7 +271,6 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, ::Val{:PSWAP}, locs::Tuple{
     state
 end
 
-using Yao.YaoBlocks
 function YaoBlocks._apply_fallback!(r::GPUReg{B,T}, b::AbstractBlock) where {B,T}
     YaoBlocks._check_size(r, b)
     r.state .= CUDA.adapt(CuArray{T}, mat(T, b)) * r.state
