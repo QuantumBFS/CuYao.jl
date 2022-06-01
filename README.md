@@ -5,7 +5,7 @@
 
 CUDA support for [Yao.jl](https://github.com/QuantumBFS/Yao.jl).
 
-**We are in an early-release beta. Expect some adventures and rough edges.**
+**Only tested locally, expect some adventures and rough edges.**
 
 ## Installation
 
@@ -51,7 +51,7 @@ cureg |> relax!(4,1,3) |> cpu
 ```
 
 Constructors `curand_state`, `cuzero_state`, `cuproduct_state`, `cuuniform_state` and `cughz_state` are tailored for GPU,
-they are often faster than uploading a CPU register to CPU.
+they are faster than uploading a CPU register to CPU.
 
 ## Features
 ### Supported Gates
@@ -71,10 +71,11 @@ they are often faster than uploading a CPU register to CPU.
 - focus!, relax!
 - join
 - density_matrix
+- fidelity (not including density matrix)
+- expect
 
 ### Other Operations
-- statistic functional diff blocks
-- expect for statistic functional
+- autodiff is supported when the only parameterized gates are rotation gates in a circuit.
 
 ## The Team
 

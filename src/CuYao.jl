@@ -25,13 +25,14 @@ import Yao.YaoArrayRegister: u1rows!, unrows!, autostatic, instruct!, swaprows!
 import LinearAlgebra: norm
 import Base: kron, getindex
 
-export cpu, cu, GPUReg, cuzero_state, cuuniform_state, curand_state, cuproduct_state, cughz_state
+export cpu, cu, AbstractCuArrayReg, CuArrayReg, CuBatchedArrayReg, CuDensityMatrix,
+    cuzero_state, cuuniform_state, curand_state, cuproduct_state, cughz_state
 
 const Ints = NTuple{<:Any, Int}
 
 include("CUDApatch.jl")
-include("GPUReg.jl")
-include("gpuapplys.jl")
+include("register.jl")
+include("instructs.jl")
 
 function __init__()
     CUDA.allowscalar(false)

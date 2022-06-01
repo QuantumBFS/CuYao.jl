@@ -4,7 +4,10 @@ cu(reg::BatchedArrayReg{D}) where D = BatchedArrayReg{D}(CuArray(reg.state), reg
 cpu(reg::BatchedArrayReg{D}) where D = BatchedArrayReg{D}(Array(reg.state), reg.nbatch)
 cu(reg::DensityMatrix{D}) where D = DensityMatrix{D}(CuArray(reg.state))
 cpu(reg::DensityMatrix{D}) where D = DensityMatrix{D}(Array(reg.state))
-const GPUReg{D, T, MT} = AbstractArrayReg{D, T, MT} where MT<:DenseCuArray
+const AbstractCuArrayReg{D, T, MT} = AbstractArrayReg{D, T, MT} where MT<:DenseCuArray
+const CuArrayReg{D, T, MT} = ArrayReg{D, T, MT} where MT<:DenseCuArray
+const CuBatchedArrayReg{D, T, MT} = BatchedArrayReg{D, T, MT} where MT<:DenseCuArray
+const CuDensityMatrix{D, T, MT} = DensityMatrix{D, T, MT} where MT<:DenseCuArray
 
 function batch_normalize!(s::DenseCuArray, p::Real=2)
     p!=2 && throw(ArgumentError("p must be 2!"))
@@ -30,7 +33,7 @@ function measure(::ComputationalBasis, reg::BatchedArrayReg{D, T, MT} where MT<:
     return _measure(rng, basis(reg), pl |> Matrix, nshots)
 end
 
-function measure!(::RemoveMeasured, ::ComputationalBasis, reg::GPUReg{D}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where D
+function measure!(::RemoveMeasured, ::ComputationalBasis, reg::AbstractCuArrayReg{D}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where D
     regm = reg |> rank3
     B = size(regm, 3)
     nregm = similar(regm, D ^ nremain(reg), B)
@@ -51,7 +54,7 @@ function measure!(::RemoveMeasured, ::ComputationalBasis, reg::GPUReg{D}, ::AllL
     return reg isa ArrayReg ? Array(res)[] : res
 end
 
-function measure!(::NoPostProcess, ::ComputationalBasis, reg::GPUReg{D, T}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where {D, T}
+function measure!(::NoPostProcess, ::ComputationalBasis, reg::AbstractCuArrayReg{D, T}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where {D, T}
     regm = reg |> rank3
     B = size(regm, 3)
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
@@ -74,7 +77,7 @@ end
 function YaoArrayRegister.measure!(
     ::NoPostProcess,
     bb::BlockedBasis,
-    reg::GPUReg{D,T},
+    reg::AbstractCuArrayReg{D,T},
     ::AllLocs;
     rng::AbstractRNG = Random.GLOBAL_RNG,
 ) where {D,T}
@@ -108,7 +111,7 @@ function YaoArrayRegister.measure!(
     return reg isa ArrayReg ? bb.values[res_cpu[]] : CuArray(bb.values[res_cpu])
 end
 
-function measure!(rst::ResetTo, ::ComputationalBasis, reg::GPUReg{D, T}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where {D, T}
+function measure!(rst::ResetTo, ::ComputationalBasis, reg::AbstractCuArrayReg{D, T}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where {D, T}
     regm = reg |> rank3
     B = size(regm, 3)
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
@@ -170,7 +173,7 @@ function YaoArrayRegister.batched_kron!(C::CuArray{T3, 3}, A::DenseCuArray, B::D
     return C
 end
 
-function join(reg1::GPUReg{D}, reg2::GPUReg{D}) where {D}
+function join(reg1::AbstractCuArrayReg{D}, reg2::AbstractCuArrayReg{D}) where {D}
     @assert nbatch(reg1) == nbatch(reg2)
     s1 = reg1 |> rank3
     s2 = reg2 |> rank3
@@ -178,7 +181,7 @@ function join(reg1::GPUReg{D}, reg2::GPUReg{D}) where {D}
     return arrayreg(copy(reshape(state, size(state, 1), :)); nlevel=D, nbatch=nbatch(reg1))
 end
 
-function Yao.insert_qudits!(reg::GPUReg{D}, loc::Int; nqudits::Int=1) where D
+function Yao.insert_qudits!(reg::AbstractCuArrayReg{D}, loc::Int; nqudits::Int=1) where D
     na = nactive(reg)
     focus!(reg, 1:loc-1)
     reg2 = join(zero_state(nqudits; nbatch=nbatch(reg)) |> cu, reg) |> relax! |> focus!((1:na+nqudits)...)
@@ -262,10 +265,22 @@ end
 
 #=
 for FUNC in [:measure!, :measure!]
-    @eval function $FUNC(rng::AbstractRNG, op::AbstractBlock, reg::GPUReg, al::AllLocs; kwargs...) where B
+    @eval function $FUNC(rng::AbstractRNG, op::AbstractBlock, reg::AbstractCuArrayReg, al::AllLocs; kwargs...) where B
         E, V = eigen!(mat(op) |> Matrix)
         ei = Eigen(E|>cu, V|>cu)
         $FUNC(rng::AbstractRNG, ei, reg, al; kwargs...)
     end
 end
 =#
+
+function YaoBlocks.expect(op::AbstractBlock, dm::CuDensityMatrix{D}) where D
+    return tr(apply(ArrayReg{D}(dm.state), op).state)
+end
+
+measure(
+    ::ComputationalBasis,
+    reg::CuDensityMatrix,
+    ::AllLocs;
+    nshots::Int = 1,
+    rng::AbstractRNG = Random.GLOBAL_RNG,
+) = YaoArrayRegister._measure(rng, basis(reg), Array(reg |> probs), nshots)
