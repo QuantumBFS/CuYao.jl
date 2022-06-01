@@ -1,6 +1,6 @@
 name = "CuYao"
 uuid = "b48ca7a8-dd42-11e8-2b8e-1b7706800275"
-version = "0.3.3"
+version = "0.3.4"
 
 [deps]
 BitBasis = "50ba71b6-fa0f-514d-ae9a-0916efc90dcf"
@@ -15,14 +15,14 @@ TupleTools = "9d95972d-f1c8-5527-a6e0-b4b365fa01f6"
 Yao = "5872b779-8223-5990-8dd0-5abbb0748c8c"
 
 [compat]
-BitBasis = "0.7"
-CUDA = "3.8"
+BitBasis = "0.8"
+CUDA = "3.10"
 LuxurySparse = "0.6"
 Reexport = "0.2, 1"
 StaticArrays = "0.12, 1"
 StatsBase = "0.33"
 TupleTools = "1"
-Yao = "0.7"
+Yao = "0.8"
 julia = "1"
 
 [extras]

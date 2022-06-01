@@ -6,9 +6,13 @@ CUDA.allowscalar(false)
 end
 
 @testset "GPU reg" begin
-    include("GPUReg.jl")
+    include("register.jl")
 end
 
 @testset "gpu applies" begin
-    include("gpuapplys.jl")
+    include("instructs.jl")
+end
+
+@testset "extra" begin
+    include("extra.jl")
 end

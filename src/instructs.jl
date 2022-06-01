@@ -1,6 +1,3 @@
-using Yao.YaoBase
-import Yao.YaoArrayRegister: u1rows!, unrows!, autostatic, instruct!, swaprows!
-
 # get index
 macro idx(shape, grididx=1, ctxsym=:ctx)
     quote
@@ -45,15 +42,15 @@ instruct!(::Val{2}, state::DenseCuVecOrMat, U0::IMatrix, locs::NTuple{M, Int}, c
 instruct!(::Val{2}, state::DenseCuVecOrMat, U0::SDSparseMatrixCSC, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = instruct!(Val(2), state, U0 |> Matrix, locs, clocs, cvals)
 
 ################## General U1 apply! ###################
-function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDSparseMatrixCSC, locs::Tuple{Int})
-    instruct!(Val(2), state, Matrix(U1), locs, clocs, cval)
+function YaoArrayRegister.single_qubit_instruct!(state::DenseCuVecOrMat, U1::SDSparseMatrixCSC, loc::Int)
+    instruct!(Val(2), state, Matrix(U1), loc, clocs, cval)
 end
-function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::AbstractMatrix, locs::Tuple{Int})
-    @debug "The generic U(2) matrix of size ($(size(U1))), on: GPU, locations: $(locs)."
+function YaoArrayRegister.single_qubit_instruct!(state::DenseCuVecOrMat, U1::AbstractMatrix, loc::Int)
+    @debug "The generic U(2) matrix of size ($(size(U1))), on: GPU, locations: $(loc)."
     a, c, b, d = U1
     nbit = log2dim1(state)
-    step = 1<<(locs[1]-1)
-    configs = itercontrol(nbit, [locs[1]], [0])
+    step = 1<<(loc-1)
+    configs = itercontrol(nbit, [loc], [0])
 
     len = length(configs)
     @inline function kernel(ctx, state, a, b, c, d, len)
@@ -66,12 +63,12 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::AbstractMatrix, locs::T
     return state
 end
 
-function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDPermMatrix, locs::Tuple{Int})
-    @debug "The single qubit permutation matrix of size ($(size(U1))), on: GPU, locations: $(locs)."
+function YaoArrayRegister.single_qubit_instruct!(state::DenseCuVecOrMat, U1::SDPermMatrix, loc::Int)
+    @debug "The single qubit permutation matrix of size ($(size(U1))), on: GPU, locations: $(loc)."
     nbit = log2dim1(state)
     b, c = U1.vals
-    step = 1<<(locs[1]-1)
-    configs = itercontrol(nbit, [locs[1]], [0])
+    step = 1<<(loc-1)
+    configs = itercontrol(nbit, [loc], [0])
 
     len = length(configs)
     function kernel(ctx, state, b, c, step, len, configs)
@@ -84,11 +81,11 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDPermMatrix, locs::Tup
     return state
 end
 
-function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDDiagonal, locs::Tuple{Int})
-    @debug "The single qubit diagonal matrix of size ($(size(U1))), on: GPU, locations: $(locs)."
+function YaoArrayRegister.single_qubit_instruct!(state::DenseCuVecOrMat, U1::SDDiagonal, loc::Int)
+    @debug "The single qubit diagonal matrix of size ($(size(U1))), on: GPU, locations: $(loc)."
     a, d = U1.diag
     nbit = log2dim1(state)
-    mask = bmask(locs...)
+    mask = bmask(loc)
     @inline function kernel(ctx, state, a, d, mask)
         inds = @cartesianidx state
         i = inds[1]
@@ -99,10 +96,9 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, U1::SDDiagonal, locs::Tuple
     return state
 end
 
-instruct!(::Val{2}, state::DenseCuVecOrMat, U::IMatrix, locs::Tuple{Int}) = state
+YaoArrayRegister.single_qubit_instruct!(state::DenseCuVecOrMat, U::IMatrix, loc::Int) = state
 
 ################## XYZ #############
-using Yao.ConstGate: S, T, Sdag, Tdag
 
 _instruct!(state::DenseCuVecOrMat, ::Val{:X}, locs::NTuple{L,Int}) where {L} = _instruct!(state, Val(:X), locs, (), ())
 function _instruct!(state::DenseCuVecOrMat, ::Val{:X}, locs::NTuple{L,Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {L,C}
@@ -210,19 +206,19 @@ end
 
 for G in [:X, :Y, :Z, :S, :T, :Sdag, :Tdag]
     @eval begin
-        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
+        function YaoArrayRegister.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::NTuple{C,Int}) where C
             _instruct!(state, g, locs)
         end
 
-        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int})
+        function YaoArrayRegister.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int})
             _instruct!(state, g, locs)
         end
 
-        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
+        function YaoArrayRegister.instruct!(::Val{2}, state::DenseCuVecOrMat, g::Val{$(QuoteNode(G))}, locs::Tuple{Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where C
             _instruct!(state, g, locs, clocs, cvals)
         end
 
-        function YaoBase.instruct!(::Val{2}, state::DenseCuVecOrMat, vg::Val{$(QuoteNode(G))}, locs::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
+        function YaoArrayRegister.instruct!(::Val{2}, state::DenseCuVecOrMat, vg::Val{$(QuoteNode(G))}, locs::Tuple{Int}, cloc::Tuple{Int}, cval::Tuple{Int})
             _instruct!(state, vg, locs, cloc, cval)
         end
     end
@@ -251,7 +247,6 @@ end
 
 ############## other gates ################
 # parametrized swap gate
-using Yao.ConstGate: SWAPGate
 
 function instruct!(::Val{2}, state::DenseCuVecOrMat, ::Val{:PSWAP}, locs::Tuple{Int, Int}, θ::Real)
     @debug "The PSWAP gate, on: GPU, locations: $(locs)."
@@ -276,8 +271,7 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, ::Val{:PSWAP}, locs::Tuple{
     state
 end
 
-using Yao.YaoBlocks
-function YaoBlocks._apply_fallback!(r::GPUReg{B,T}, b::AbstractBlock) where {B,T}
+function YaoBlocks._apply_fallback!(r::AbstractCuArrayReg{B,T}, b::AbstractBlock) where {B,T}
     YaoBlocks._check_size(r, b)
     r.state .= CUDA.adapt(CuArray{T}, mat(T, b)) * r.state
     return r
