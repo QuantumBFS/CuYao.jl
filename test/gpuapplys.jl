@@ -42,8 +42,8 @@ end
     nbit = 6
     N = 1<<nbit
     LOC1 = SVector{2}([0, 1])
-    v1 = randn(ComplexF32, N)
-    vn = randn(ComplexF32, N, 333)
+    v1 = randn(ComplexF64, N)
+    vn = randn(ComplexF64, N, 333)
 
     for U1 in [mat(H), mat(Z), mat(I2), mat(ConstGate.P0), mat(X), mat(Y)]
         @test instruct!(Val(2),v1 |> CuArray, U1, (3,)) |> Vector ≈ instruct!(Val(2),v1 |> copy, U1, (3,))
@@ -99,4 +99,12 @@ end
         @test apply!(reg |> cu, ps) |> cpu ≈ apply!(copy(reg), ps)
         @test apply!(reg |> cu, ps).state isa CuArray
     end
+end
+
+@testset "density matrix" begin
+    nbit = 6
+    reg = rand_state(nbit)
+    rho = density_matrix(reg)
+    c = put(6, (2,)=>Rx(π/3))
+    @test apply(rho |> cu, c) |> cpu ≈ apply(rho, c)
 end

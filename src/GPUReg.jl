@@ -2,6 +2,8 @@ cu(reg::ArrayReg{D}) where D = ArrayReg{D}(CuArray(reg.state))
 cpu(reg::ArrayReg{D}) where D = ArrayReg{D}(Array(reg.state))
 cu(reg::BatchedArrayReg{D}) where D = BatchedArrayReg{D}(CuArray(reg.state), reg.nbatch)
 cpu(reg::BatchedArrayReg{D}) where D = BatchedArrayReg{D}(Array(reg.state), reg.nbatch)
+cu(reg::DensityMatrix{D}) where D = DensityMatrix{D}(CuArray(reg.state))
+cpu(reg::DensityMatrix{D}) where D = DensityMatrix{D}(Array(reg.state))
 const GPUReg{D, T, MT} = AbstractArrayReg{D, T, MT} where MT<:DenseCuArray
 
 function batch_normalize!(s::DenseCuArray, p::Real=2)
@@ -18,14 +20,14 @@ end
 
 ############### MEASURE ##################
 function measure(::ComputationalBasis, reg::ArrayReg{D, T, MT} where MT<:DenseCuArray, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG, nshots::Int=1) where {D,T}
-    _measure(rng, reg |> probs |> Vector, nshots)
+    _measure(rng, basis(reg), reg |> probs |> Vector, nshots)
 end
 
 # TODO: optimize the batch dimension using parallel sampling
 function measure(::ComputationalBasis, reg::BatchedArrayReg{D, T, MT} where MT<:DenseCuArray, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG, nshots::Int=1) where {D,T}
     regm = reg |> rank3
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
-    return _measure(rng, pl |> Matrix, nshots)
+    return _measure(rng, basis(reg), pl |> Matrix, nshots)
 end
 
 function measure!(::RemoveMeasured, ::ComputationalBasis, reg::GPUReg{D}, ::AllLocs; rng::AbstractRNG=Random.GLOBAL_RNG) where D
@@ -34,7 +36,7 @@ function measure!(::RemoveMeasured, ::ComputationalBasis, reg::GPUReg{D}, ::AllL
     nregm = similar(regm, D ^ nremain(reg), B)
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
-    res_cpu = map(ib->_measure(rng, view(pl_cpu, :, ib), 1)[], 1:B)
+    res_cpu = map(ib->_measure(rng, basis(reg), view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
     CI = Base.CartesianIndices(nregm)
     @inline function kernel(ctx, nregm, regm, res, pl)
@@ -54,7 +56,7 @@ function measure!(::NoPostProcess, ::ComputationalBasis, reg::GPUReg{D, T}, ::Al
     B = size(regm, 3)
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
-    res_cpu = map(ib->_measure(rng, view(pl_cpu, :, ib), 1)[], 1:B)
+    res_cpu = map(ib->_measure(rng, basis(reg), view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
     CI = Base.CartesianIndices(regm)
 
@@ -111,7 +113,7 @@ function measure!(rst::ResetTo, ::ComputationalBasis, reg::GPUReg{D, T}, ::AllLo
     B = size(regm, 3)
     pl = dropdims(mapreduce(abs2, +, regm, dims=2), dims=2)
     pl_cpu = pl |> Matrix
-    res_cpu = map(ib->_measure(rng, view(pl_cpu, :, ib), 1)[], 1:B)
+    res_cpu = map(ib->_measure(rng, basis(reg), view(pl_cpu, :, ib), 1)[], 1:B)
     res = CuArray(res_cpu)
     CI = Base.CartesianIndices(regm)
 
