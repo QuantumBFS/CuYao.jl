@@ -25,7 +25,7 @@ using CUDA
         @test instruct!(Val(2),vn |> CuArray, UN, (3,1)) |> Matrix ≈ instruct!(Val(2),vn |> copy, UN, (3,1))
     end
     # sparse matrix like P0, P1 et. al. are not implemented.
-    for g in [mat(ComplexF32, ConstGate.T), mat(ComplexF32, ConstGate.H)]
+    for g in [mat(ComplexF32, ConstGate.T), mat(ComplexF32, ConstGate.H), mat(ComplexF32, rot(Z, 0.5))]
         @test instruct!(Val(2), v1 |> CuArray, g, (3,), (4,), (1,)) |> Vector ≈ instruct!(Val(2), v1 |> copy, g, (3,), (4,), (1,))
         @test instruct!(Val(2), vn |> CuArray, g, (3,), (4,), (1,)) |> Matrix ≈ instruct!(Val(2), vn |> copy, g, (3,), (4,), (1,))
         @test instruct!(Val(2), v1 |> CuArray, g, (3,), (4,), (1,)) |> Vector ≈ instruct!(Val(2), v1 |> copy, g, (3,), (4,), (1,))
