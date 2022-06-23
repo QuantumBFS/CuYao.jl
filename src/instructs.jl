@@ -37,10 +37,26 @@ function instruct!(::Val{2}, state::DenseCuVecOrMat, U0::AbstractMatrix, locs::N
         return
     end
 
+    @inline function kernel_single_entry_diag(ctx, state, loc, val, configs, len)
+        CUDA.assume(len > 0)
+        sz = size(state)
+        CUDA.assume(length(sz) == 1 || length(sz) == 2)
+        inds = @idx replace_first(sz, len)
+        x = @inbounds configs[inds[1]]
+        @inbounds piecewise(state, inds)[x + loc] *= val
+        return
+    end
+
     elements = len*size(state,2)
-    threads = 256
-    blocks = ceil(Int, elements / threads)
-    gpu_call(kernel, state, locs_raw, U, configs, len; threads, blocks)
+    if U isa Diagonal && count(!isone, U.diag) == 1
+        @debug "The single entry diagonal matrix, on: GPU, locations: $(locs), controlled by: $(clocs) = $(cvals)."
+        k = findfirst(!isone, U.diag)
+        loc = locs_raw[k]
+        val = U.diag[k]
+        gpu_call(kernel_single_entry_diag, state, loc, val, configs, len; elements)
+    else
+        gpu_call(kernel, state, locs_raw, U, configs, len; elements)
+    end
     state
 end
 instruct!(::Val{2}, state::DenseCuVecOrMat, U0::IMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = state
