@@ -114,3 +114,9 @@ end
     c = put(6, (2,)=>Rx(π/3))
     @test apply(rho |> cu, c) |> cpu ≈ apply(rho, c)
 end
+
+@testset "time evolve" begin
+    g = time_evolve(kron(10, 2=>X, 3=>X), 0.5)
+    reg = rand_state(10)
+    @test apply!(copy(reg), g) ≈ apply!(reg |> cu, g) |> cpu
+end
