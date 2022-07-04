@@ -19,23 +19,44 @@ gpu_compatible(A::StaticArray) = A
 function instruct!(::Val{2}, state::DenseCuVecOrMat, U0::AbstractMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M}
     @debug "The generic U(N) matrix of size ($(size(U0))), on: GPU, locations: $(locs), controlled by: $(clocs) = $(cvals)."
     nbit = log2dim1(state)
-    U0 = gpu_compatible(U0)
     # reorder a unirary matrix.
-    U = (all(TupleTools.diff(locs).>0) ? U0 : reorder(U0, collect(locs)|>sortperm)) |> staticize
+    U = gpu_compatible(all(TupleTools.diff(locs).>0) ? U0 : reorder(U0, collect(locs)|>sortperm))
     locked_bits = [clocs..., locs...]
     locked_vals = [cvals..., zeros(Int, M)...]
-    locs_raw = [i+1 for i in itercontrol(nbit, setdiff(1:nbit, locs), zeros(Int, nbit-M))] |> staticize
+    locs_raw = gpu_compatible([i+1 for i in itercontrol(nbit, setdiff(1:nbit, locs), zeros(Int, nbit-M))])
     configs = itercontrol(nbit, locked_bits, locked_vals)
 
     len = length(configs)
     @inline function kernel(ctx, state, locs_raw, U, configs, len)
-        inds = @idx replace_first(size(state), len)
+        CUDA.assume(len > 0)
+        sz = size(state)
+        CUDA.assume(length(sz) == 1 || length(sz) == 2)
+        inds = @idx replace_first(sz, len)
         x = @inbounds configs[inds[1]]
         @inbounds unrows!(piecewise(state, inds), x .+ locs_raw, U)
         return
     end
 
-    gpu_call(kernel, state, locs_raw, U, configs, len; elements=len*size(state,2))
+    @inline function kernel_single_entry_diag(ctx, state, loc, val, configs, len)
+        CUDA.assume(len > 0)
+        sz = size(state)
+        CUDA.assume(length(sz) == 1 || length(sz) == 2)
+        inds = @idx replace_first(sz, len)
+        x = @inbounds configs[inds[1]]
+        @inbounds piecewise(state, inds)[x + loc] *= val
+        return
+    end
+
+    elements = len*size(state,2)
+    if U isa Diagonal && count(!isone, U.diag) == 1
+        @debug "The single entry diagonal matrix, on: GPU, locations: $(locs), controlled by: $(clocs) = $(cvals)."
+        k = findfirst(!isone, U.diag)
+        loc = locs_raw[k]
+        val = U.diag[k]
+        gpu_call(kernel_single_entry_diag, state, loc, val, configs, len; elements)
+    else
+        gpu_call(kernel, state, locs_raw, U, configs, len; elements)
+    end
     state
 end
 instruct!(::Val{2}, state::DenseCuVecOrMat, U0::IMatrix, locs::NTuple{M, Int}, clocs::NTuple{C, Int}, cvals::NTuple{C, Int}) where {C, M} = state

@@ -21,7 +21,7 @@ import Yao.YaoArrayRegister: _measure, measure, measure!
 import Yao.YaoArrayRegister: batch_normalize!
 import Yao.YaoBlocks: BlockedBasis, nblocks, subblock
 import Yao: expect
-import Yao.YaoArrayRegister: u1rows!, unrows!, autostatic, instruct!, swaprows!
+import Yao.YaoArrayRegister: u1rows!, unrows!, autostatic, instruct!, swaprows!, mulrow!
 import LinearAlgebra: norm
 import Base: kron, getindex
 
