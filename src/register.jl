@@ -7,7 +7,7 @@ cpu(reg::DensityMatrix{D}) where D = DensityMatrix{D}(Array(reg.state))
 const AbstractCuArrayReg{D, T, MT} = AbstractArrayReg{D, T, MT} where MT<:DenseCuArray
 const CuArrayReg{D, T, MT} = ArrayReg{D, T, MT} where MT<:DenseCuArray
 const CuBatchedArrayReg{D, T, MT} = BatchedArrayReg{D, T, MT} where MT<:DenseCuArray
-const CuDensityMatrix{D, T, MT} = DensityMatrix{D, T, MT} where MT<:DenseCuArray
+const CuDensityMatrix{D, T, MT} = DensityMatrix{D, T, MT} where MT<:DenseCuMatrix
 
 function batch_normalize!(s::DenseCuArray, p::Real=2)
     p!=2 && throw(ArgumentError("p must be 2!"))
@@ -273,8 +273,14 @@ for FUNC in [:measure!, :measure!]
 end
 =#
 
+function YaoBlocks.expect(op::AbstractAdd, dm::CuDensityMatrix)
+    sum(x->expect(x, dm), subblocks(op))
+end
 function YaoBlocks.expect(op::AbstractBlock, dm::CuDensityMatrix{D}) where D
     return tr(apply(ArrayReg{D}(dm.state), op).state)
+end
+function expect(op::Scale, reg::DensityMatrix)
+    factor(op) * expect(content(op), reg)
 end
 
 measure(
