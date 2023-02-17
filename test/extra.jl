@@ -47,6 +47,6 @@ end
     b = expect(h, crho)
     @test a ≈ b
     # fidelity
-    @test_broken fidelity(crho, crho) ≈ 1
+    @test fidelity(crho, crho) ≈ 1
     @test measure(crho; nshots=2) isa Vector
 end
