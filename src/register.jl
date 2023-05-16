@@ -290,3 +290,4 @@ measure(
     nshots::Int = 1,
     rng::AbstractRNG = Random.GLOBAL_RNG,
 ) = YaoArrayRegister._measure(rng, basis(reg), Array(reg |> probs), nshots)
+

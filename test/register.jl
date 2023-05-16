@@ -136,3 +136,4 @@ end
         @test cpu(reg) ≈ ghz_state(3; nbatch=b) && reg isa AbstractCuArrayReg
     end
 end
+
