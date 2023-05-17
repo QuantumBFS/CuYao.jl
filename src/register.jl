@@ -279,9 +279,6 @@ end
 function YaoBlocks.expect(op::AbstractBlock, dm::CuDensityMatrix{D}) where D
     return tr(apply(ArrayReg{D}(dm.state), op).state)
 end
-function expect(op::Scale, reg::CuDensityMatrix)
-    factor(op) * expect(content(op), reg)
-end
 
 measure(
     ::ComputationalBasis,
