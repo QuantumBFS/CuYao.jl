@@ -305,7 +305,7 @@ for RG in [:Rx, :Ry, :Rz]
             ::Val{$(QuoteNode(RG))},
             locs::Tuple{Int},
             theta::Number
-        ) where {T, N}
+        ) where {T}
         YaoArrayRegister.instruct!(Val(2), state, Val($(QuoteNode(RG))), locs, (), (), theta)
         return state
     end

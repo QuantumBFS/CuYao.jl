@@ -87,9 +87,9 @@ end
     @test size(res) == (32,)
     @test res2 == res
 
-    reg = repeat(ArrayReg([1,-1+0im]/sqrt(2.0)), 10) |> cu
+    reg = clone(ArrayReg([1,-1+0im]/sqrt(2.0)), 10) |> cu
     @test measure!(X, reg) |> mean ≈ -1
-    reg = repeat(ArrayReg([1.0,0+0im]), 1000)
+    reg = clone(ArrayReg([1.0,0+0im]), 1000)
     @test abs(measure!(X, reg) |> mean) < 0.1
 end
 
@@ -136,3 +136,4 @@ end
         @test cpu(reg) ≈ ghz_state(3; nbatch=b) && reg isa AbstractCuArrayReg
     end
 end
+

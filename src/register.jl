@@ -279,9 +279,6 @@ end
 function YaoBlocks.expect(op::AbstractBlock, dm::CuDensityMatrix{D}) where D
     return tr(apply(ArrayReg{D}(dm.state), op).state)
 end
-function expect(op::Scale, reg::DensityMatrix)
-    factor(op) * expect(content(op), reg)
-end
 
 measure(
     ::ComputationalBasis,
@@ -290,3 +287,4 @@ measure(
     nshots::Int = 1,
     rng::AbstractRNG = Random.GLOBAL_RNG,
 ) = YaoArrayRegister._measure(rng, basis(reg), Array(reg |> probs), nshots)
+
