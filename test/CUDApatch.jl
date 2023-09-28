@@ -1,7 +1,7 @@
 using CuYao
 using CUDA
 using Test
-using YaoBlocks
+using Yao.YaoBlocks
 
 @testset "isapprox-complex" begin
     ca = CuArray(randn(ComplexF64,3,3))
