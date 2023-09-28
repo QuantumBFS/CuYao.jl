@@ -2,9 +2,9 @@ using Test
 using CuYao
 using CuYao: tri2ij
 using LinearAlgebra
-using BitBasis
+using Yao.YaoArrayRegister.BitBasis
 using Statistics: mean
-using StaticArrays
+using Yao.YaoArrayRegister.StaticArrays
 using CUDA
 using Yao.YaoArrayRegister: batched_kron, batched_kron!, batch_normalize!
 CUDA.allowscalar(false)

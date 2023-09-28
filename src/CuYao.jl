@@ -1,7 +1,6 @@
 module CuYao
-using LuxurySparse, StaticArrays, LinearAlgebra, Base.Cartesian
-using StatsBase
-using BitBasis
+using Yao.YaoArrayRegister.LuxurySparse, Yao.YaoArrayRegister.StaticArrays, LinearAlgebra, Base.Cartesian
+using Yao.YaoArrayRegister.StatsBase, Yao.YaoArrayRegister.BitBasis
 using Reexport
 import TupleTools
 using Random

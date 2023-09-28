@@ -1,7 +1,7 @@
 using LinearAlgebra, Yao.ConstGate
 using Test, Random
 using CuYao
-using StaticArrays
+using Yao.YaoArrayRegister.StaticArrays
 using Yao.ConstGate: SWAPGate
 using CUDA
 
@@ -119,4 +119,17 @@ end
     g = time_evolve(kron(10, 2=>X, 3=>X), 0.5)
     reg = rand_state(10)
     @test apply!(copy(reg), g) ≈ apply!(reg |> cu, g) |> cpu
+end
+
+# fix: https://github.com/QuantumBFS/CuYao.jl/issues/81
+@testset "generic sparse (pqc circuit)" begin
+    # kron of Rx
+    pqc_circuit = subroutine(10, kron(Rx(0.4), Rx(0.5), Rx(0.6), Rx(0.8)), (1, 2, 6, 5))
+    proxy_reg = zero_state(10)
+    @test apply!(proxy_reg |> cu, pqc_circuit) |> cpu ≈ apply(proxy_reg, pqc_circuit)
+
+    # kron of Rz
+    pqc_circuit = subroutine(10, kron(Rz(0.4), Rz(0.5), Rz(0.6), Rz(0.8)), (1, 2, 6, 5))
+    proxy_reg = zero_state(10)
+    @test apply!(proxy_reg |> cu, pqc_circuit) |> cpu ≈ apply(proxy_reg, pqc_circuit)
 end
