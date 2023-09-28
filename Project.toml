@@ -1,6 +1,6 @@
 name = "CuYao"
 uuid = "b48ca7a8-dd42-11e8-2b8e-1b7706800275"
-version = "0.3.9"
+version = "0.3.8"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
