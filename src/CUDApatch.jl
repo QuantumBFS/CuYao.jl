@@ -60,5 +60,5 @@ end
 YaoBlocks.AD.as_scalar(x::DenseCuArray) = Array(x)[]
 
 # patch for ExponentialUtilities
-YaoBlocks.ExponentialUtilities.compatible_multiplicative_operand(::CuArray, source::AbstractArray) = CuArray(source)
-YaoBlocks.ExponentialUtilities.compatible_multiplicative_operand(::CuArray, source::CuArray) = source
+YaoBlocks.compatible_multiplicative_operand(::CuArray, source::AbstractArray) = CuArray(source)
+YaoBlocks.compatible_multiplicative_operand(::CuArray, source::CuArray) = source
