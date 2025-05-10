@@ -1,11 +1,7 @@
-**Build status**: [![][gitlab-img]][gitlab-url]
-
 [gitlab-img]: https://gitlab.com/JuliaGPU/CuYao.jl/badges/master/pipeline.svg
 [gitlab-url]: https://gitlab.com/JuliaGPU/CuYao.jl/pipelines
 
-CUDA support for [Yao.jl](https://github.com/QuantumBFS/Yao.jl).
-
-**Only tested locally, expect some adventures and rough edges.**
+**Important:** This package is nolonger needed for using CUDA. It is moved to [Yao.jl](https://github.com/QuantumBFS/Yao.jl) as an extension!
 
 ## Installation
 
